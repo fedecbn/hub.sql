@@ -39,7 +39,7 @@ CREATE OR REPLACE FUNCTION hub_clear(libSchema varchar, jdd varchar, typBdd varc
 $BODY$  DECLARE out zz_log%rowtype; DECLARE libTable varchar;DECLARE prefixe varchar; DECLARE typJdd varchar; DECLARE cdJdd varchar; DECLARE wheres varchar; DECLARE flag integer; DECLARE presence_jdd integer;
 BEGIN
 --- Variables
-CASE 	WHEN typBdd = 'temp' 	THEN 	flag :=1; prefixe = 'temp_';
+CASE WHEN typBdd = 'temp' 	THEN 	flag :=1; prefixe = 'temp_';
 	WHEN typBdd = 'propre' 	THEN 	flag :=1; prefixe = '';
 	ELSE  				flag :=0;
 END CASE;
@@ -69,6 +69,7 @@ CASE WHEN flag = 2 THEN
 	out."libLog" = jdd||' effacé des tables temporaires';
 ELSE EXECUTE 'SELECT 1;';
 END CASE;
+
 --- Output&Log
 out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_clear';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";
 EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
@@ -302,20 +303,34 @@ RETURN next out;END;$BODY$ LANGUAGE plpgsql;
 ------------------------------------------
 --- Création de l'aide et Accéder à la description d'un fonction
 ------------------------------------------
-CREATE OR REPLACE FUNCTION hub_help(libFonction varchar) RETURNS setof varchar AS 
-$BODY$ DECLARE out varchar; DECLARE var varchar; BEGIN
-out := '-------------------------'; RETURN next out; 
-out := 'Nom de la Fonction = '||libFonction;RETURN next out; 
-EXECUTE 'SELECT ''- Description : ''||"description" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out; 
-EXECUTE 'SELECT ''- Type : ''||"type" FROM ref.help WHERE "id" = '''||libFonction||''';' INTO out;RETURN next out; 
-EXECUTE 'SELECT ''- Etat de la fonction : ''||"etat" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out;
-EXECUTE 'SELECT ''- Amélioration à prevoir : ''||"amelioration" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out;
-out := '-------------------------'; RETURN next out; 
-out := 'Liste des variables :';RETURN next out;
-FOR var IN EXECUTE 'SELECT '' o ''||"id"||'' : ''||"description"||''. Valeurs possibles = ("''||valeurs||''")'' FROM ref.help_var WHERE "'||libFonction||'" = ''oui'';'
-	LOOP --- variables d'entrées
-	RETURN next var;
+CREATE OR REPLACE FUNCTION hub_help(libFonction varchar = 'all') RETURNS setof varchar AS 
+$BODY$ DECLARE out varchar; DECLARE var varchar; DECLARE flag integer; DECLARE testFonction varchar; BEGIN
+--- Variable
+flag := 0;
+FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
+	LOOP 
+		 CASE WHEN testFonction = libFonction THEN flag := 1; ELSE EXECUTE 'SELECT 1;'; END CASE; 
 	END LOOP;
+--- Commande
+CASE WHEN libFonction = 'all' THEN
+	out := 'Ajouter une des fonctions listée ci-dessous pour avoir sa description : SELECT * FROM hub_help(''fonction'');';RETURN next out;
+	FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
+		LOOP out := testFonction;RETURN next out; END LOOP;
+WHEN flag = 1 THEN
+	out := '-------------------------'; RETURN next out; 
+	out := 'Nom de la Fonction = '||libFonction;RETURN next out; 
+	EXECUTE 'SELECT ''- Description : ''||"description" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out; 
+	EXECUTE 'SELECT ''- Type : ''||"type" FROM ref.help WHERE "id" = '''||libFonction||''';' INTO out;RETURN next out; 
+	EXECUTE 'SELECT ''- Etat de la fonction : ''||"etat" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out;
+	EXECUTE 'SELECT ''- Amélioration à prevoir : ''||"amelioration" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out;
+	out := '-------------------------'; RETURN next out; 
+	out := 'Liste des variables :';RETURN next out;
+	FOR var IN EXECUTE 'SELECT '' o ''||"id"||'' : ''||"description"||''. Valeurs possibles = ("''||valeurs||''")'' FROM ref.help_var WHERE "'||libFonction||'" = ''oui'';'
+		LOOP --- variables d'entrées
+		RETURN next var;
+		END LOOP;
+ELSE out := 'Fonction inexistante';RETURN next out;
+END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
 ------------------------------------------
@@ -376,14 +391,6 @@ WHEN jdd = 'listTaxon' THEN
 			FROM ref.taxref_v5 t2
 			JOIN hierarchie h ON t2.cd_taxsup = h.cd_nom
 			) SELECT * FROM hierarchie) as foo';
----		EXECUTE
----			'INSERT INTO "'||libSchema||'".zz_log_liste_taxon_et_infra ("cdRefDemande", "nomValideDemande", "cdRefCite", "nomCompletCite","cdTaxsupCite","rangCite")
----			select '''||i||''' as cdRefDemande, '''' as nomValideDemande, foo.* from 
----			(WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS (
----			SELECT cd_ref, nom_complet, cd_taxsup, rang FROM ref.taxref_v5  AS t WHERE cd_ref::text = '''||i||'''
----			UNION ALL
----			SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang FROM hierarchie AS h, ref.taxref_v5 AS e WHERE h.cd_ref = e.cd_taxsup
----			) SELECT * FROM hierarchie) as foo';
 		end loop;
 	EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set "nomValideDemande" = "nomValide" from "'||libSchema||'".zz_log_liste_taxon where zz_log_liste_taxon_et_infra."cdRefDemande"= zz_log_liste_taxon."cdRef" ' ;
 	out."libLog" := jdd||' importé depuis '||path;
