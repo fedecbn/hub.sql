@@ -281,7 +281,7 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_meta'
 	LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE "cdJdd" = '||Jdd||') TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 --- Output&Log
-out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_import';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";
+out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_export';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";
 out."libLog" :=  Jdd||'exporté';
 EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
@@ -359,22 +359,35 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_meta;'
 		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out."libLog" := jdd||' importé depuis '||path;
-WHEN typJdd = 'listTaxon' THEN 
+WHEN jdd = 'listTaxon' THEN 
 	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon;TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
-	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||'20151201_demande_marc_isenmann.csv'' HEADER CSV DELIMITER ''	'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||'std_listTaxon.csv'' HEADER CSV DELIMITER ''	'' ENCODING ''UTF8'';';
 	FOR i in EXECUTE 'select "cdRef" from "'||libSchema||'".zz_log_liste_taxon' 
-		LOOP  EXECUTE
-			'insert into "'||libSchema||'".zz_log_liste_taxon_et_infra ("cdRefDemande", "nomValideDemande", "cdRefCite", "nomCompletCite","rangCite","cdTaxsupCite")
+		LOOP  
+		EXECUTE
+			'INSERT INTO "'||libSchema||'".zz_log_liste_taxon_et_infra ("cdRefDemande", "nomValideDemande", "cdRefCite", "nomCompletCite","cdTaxsupCite","rangCite")
 			select '''||i||''' as cdRefDemande, '''' as nomValideDemande, foo.* from 
-			(WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS (
-			SELECT cd_ref, nom_complet, cd_taxsup, rang FROM ref.taxref_v5  AS t WHERE cd_ref::text = '''||i||'''
-			UNION ALL
-			SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang FROM hierarchie AS h, ref.taxref_v5 AS e WHERE h.cd_ref = e.cd_taxsup
-			)SELECT * FROM hierarchie ) as foo';
-			end loop;
+			(WITH RECURSIVE hierarchie(cd_nom,nom_complet, cd_taxsup, rang) AS (
+			SELECT cd_nom, nom_complet, cd_taxsup, rang
+			FROM ref.taxref_v5 t1
+			WHERE t1.cd_nom = '''||i||'''
+			UNION
+			SELECT t2.cd_nom, t2.nom_complet, t2.cd_taxsup, t2.rang
+			FROM ref.taxref_v5 t2
+			JOIN hierarchie h ON t2.cd_taxsup = h.cd_nom
+			) SELECT * FROM hierarchie) as foo';
+---		EXECUTE
+---			'INSERT INTO "'||libSchema||'".zz_log_liste_taxon_et_infra ("cdRefDemande", "nomValideDemande", "cdRefCite", "nomCompletCite","cdTaxsupCite","rangCite")
+---			select '''||i||''' as cdRefDemande, '''' as nomValideDemande, foo.* from 
+---			(WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS (
+---			SELECT cd_ref, nom_complet, cd_taxsup, rang FROM ref.taxref_v5  AS t WHERE cd_ref::text = '''||i||'''
+---			UNION ALL
+---			SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang FROM hierarchie AS h, ref.taxref_v5 AS e WHERE h.cd_ref = e.cd_taxsup
+---			) SELECT * FROM hierarchie) as foo';
+		end loop;
 	EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set "nomValideDemande" = "nomValide" from "'||libSchema||'".zz_log_liste_taxon where zz_log_liste_taxon_et_infra."cdRefDemande"= zz_log_liste_taxon."cdRef" ' ;
-	out."libLog" := typJdd||' importé depuis '||path;
-ELSE out."libLog" := 'Problème identifié dans le typJdd (ni data, ni taxa,ni meta)'; END CASE;
+	out."libLog" := jdd||' importé depuis '||path;
+ELSE out."libLog" := 'Problème identifié dans le jdd (ni data, ni taxa,ni meta)'; END CASE;
 
 --- Output&Log
 out."libSchema" := libSchema;out."libChamp" := '-';out."libTable" := '-';out."typLog" := 'hub_import';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";
