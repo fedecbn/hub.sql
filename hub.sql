@@ -486,17 +486,17 @@ END;$BODY$ LANGUAGE plpgsql;
 ------------------------------------------
 --- Création des référentiels
 ------------------------------------------
-CREATE OR REPLACE FUNCTION hub_ref(typAction varchar, path varchar = null) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_ref(typAction varchar, path varchar = '/home/hub/00_ref/') RETURNS setof zz_log AS 
 $BODY$ DECLARE out zz_log%rowtype; DECLARE flag1 integer; DECLARE flag2 integer; DECLARE champFonction varchar; DECLARE libTable varchar; DECLARE delimitr varchar; DECLARE structure varchar; BEGIN
 --- Output
 out."libSchema" := '-';out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_ref';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";
 ---Variables
-DROP TABLE IF  EXISTS public.ref_meta;CREATE TABLE public.ref_meta (id varchar, delimitr varchar, structure varchar, CONSTRAINT ref_meta_pk PRIMARY KEY(id));
+DROP TABLE IF  EXISTS public.ref_meta;CREATE TABLE public.ref_meta(id varchar, delimitr varchar, structure varchar, CONSTRAINT ref_meta_pk PRIMARY KEY(id));
 INSERT INTO public.ref_meta VALUES 
 ('fsd_meta',';','(id serial NOT NULL, tbl_order integer, tbl_name character varying, pos character varying, cd character varying, lib character varying, format character varying,obligation character varying, unicite character varying, regle character varying, CONSTRAINT fsd_meta_pkey PRIMARY KEY (id))'),
 ('fsd_data',';','(id serial NOT NULL, tbl_order integer, tbl_name character varying, pos character varying, cd character varying, lib character varying, format character varying,obligation character varying, unicite character varying, regle character varying, CONSTRAINT fsd_data_pkey PRIMARY KEY (id))'),
 ('fsd_taxa',';','(id serial NOT NULL, tbl_order integer, tbl_name character varying, pos character varying, cd character varying, lib character varying, format character varying,obligation character varying, unicite character varying, regle character varying, CONSTRAINT fsd_taxa_pkey PRIMARY KEY (id))'),
-('help',';','("id" varchar,"type" varchar,"description" varchar, "etat" varchar, "amelioration" varchar, CONSTRAINT pk_help PRIMARY KEY ("id"))'),
+('help',',','("id" varchar,"type" varchar,"description" varchar, "etat" varchar, "amelioration" varchar, CONSTRAINT pk_help PRIMARY KEY ("id"))'),
 ('help_var',';','("id" varchar,"description" varchar, "valeurs" varchar, "hub_checkout" varchar,"hub_clear" varchar,"hub_clone" varchar,"hub_diff" varchar,"hub_drop" varchar,"hub_export" varchar,"hub_extract" varchar,"hub_help" varchar,"hub_idPerm" varchar,"hub_import" varchar,"hub_install" varchar,"hub_pull" varchar,"hub_push" varchar,"hub_ref" varchar,"hub_verif" varchar,"hub_verif_all" varchar,CONSTRAINT pk_help_var PRIMARY KEY ("id"))'),
 ('taxref_v2','\t','("ogc_fid" integer, "regne" character varying, "phylum" character varying, "classe" character varying, "ordre" character varying, "famille" character varying, cd_nom character varying, lb_nom character varying, lb_auteur character varying, nom_complet character varying, cd_ref character varying, nom_valide character varying, rang character varying, nom_vern character varying, nom_vern_eng character varying, fr character varying, mar character varying, gua character varying, smsb character varying, gf character varying, spm character varying, reu character varying, may character varying, taaf character varying, nom_complet_sans_date character varying, CONSTRAINT refv20_utf8_pk PRIMARY KEY (ogc_fid))'),
 ('taxref_v3','\t','(ogc_fid integer, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_nom character varying, cd_taxsup character varying, cd_ref character varying, rang character varying, lb_nom character varying, lb_auteur character varying, nom_valide character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, fr character varying, gf character varying, mar character varying, gua character varying, smsb character varying, spm character varying, may character varying, epa character varying, reu character varying, taaf character varying, nc character varying, wf character varying, pf character varying, cli character varying, nom_complet character varying, nom_complet_sans_date character varying, CONSTRAINT taxrefv30_utf8_pk PRIMARY KEY (ogc_fid))'),
@@ -524,10 +524,8 @@ WHEN typAction = 'delete' THEN	--- Suppression
 		END LOOP;
 	ELSE out."libLog" := 'Schéma ref inexistant';RETURN next out;END CASE;
 WHEN typAction = 'create' THEN	--- Creation
-	--- Schema ref
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
-	CASE WHEN flag1 = 1 THEN out."libLog" := 'Schema ref déjà créés';RETURN next out;
-	ELSE CREATE SCHEMA "ref"; out."libLog" := 'Schéma ref créés';RETURN next out;END CASE;
+	CASE WHEN flag1 = 1 THEN out."libLog" := 'Schema ref déjà créés';RETURN next out;ELSE CREATE SCHEMA "ref"; out."libLog" := 'Schéma ref créés';RETURN next out;END CASE;
 	--- Tables
 	FOR libTable IN EXECUTE 'SELECT id FROM public.ref_meta'
 		LOOP EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
@@ -536,22 +534,27 @@ WHEN typAction = 'create' THEN	--- Creation
 		ELSE EXECUTE 'SELECT structure FROM public.ref_meta WHERE id = '''||libTable||'''' INTO structure;
 		EXECUTE 'SELECT delimitr FROM public.ref_meta WHERE id = '''||libTable||'''' INTO delimitr;
 		EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out."libLog" := libTable||' créée';RETURN next out;
-		EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';'; out."libLog" := libTable||' : données importées';RETURN next out;
+		EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+		out."libLog" := libTable||' : données importées';RETURN next out;
 		END CASE;
 		END LOOP;
 WHEN typAction = 'update' THEN	--- Mise à jour
-	FOREACH libTable IN ARRAY listTable
-		LOOP EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''');' INTO flag2;
+	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
+	CASE WHEN flag1 = 1 THEN out."libLog" := 'Schema ref déjà créés';RETURN next out;ELSE CREATE SCHEMA "ref"; out."libLog" := 'Schéma ref créés';RETURN next out;END CASE;
+	FOR libTable IN EXECUTE 'SELECT id FROM public.ref_meta'
+		LOOP 
+		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
+		EXECUTE 'SELECT delimitr FROM public.ref_meta WHERE id = '''||libTable||'''' INTO delimitr;
 		CASE WHEN flag2 = 1 THEN
 			EXECUTE 'TRUNCATE ref.'||libTable;
 			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
-			out."libLog" := 'Mise à jour des tables ref.ddd et ref.fsd';RETURN next out;
-		ELSE out."libLog" := 'Les tables doivent être créée auparavant (hub_fsd(''create'',path)';RETURN next out;
+			out."libLog" := 'Mise à jour de la table '||libTable;RETURN next out;
+		ELSE out."libLog" := 'Les tables doivent être créée auparavant : SELECT * FROM hub_ref(''create'',path)';RETURN next out;
 		END CASE;
 	END LOOP;
 ELSE out."libLog" := 'Action non reconnue';RETURN next out;
 END CASE;
-DROP TABLE public.ref_meta;
+--- DROP TABLE public.ref_meta;
 --- Log
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 END;$BODY$ LANGUAGE plpgsql;
@@ -652,5 +655,6 @@ PERFORM hub_verif(libSchema,'data','all');
 PERFORM hub_verif(libSchema,'taxa','all');
 RETURN 'Vérification réalisées (aller voir dans les tables zz_log)';END;
 $BODY$ LANGUAGE plpgsql;
+
 
 
