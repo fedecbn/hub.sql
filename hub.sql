@@ -304,7 +304,7 @@ RETURN next out;END;$BODY$ LANGUAGE plpgsql;
 --- Création de l'aide et Accéder à la description d'un fonction
 ------------------------------------------
 CREATE OR REPLACE FUNCTION hub_help(libFonction varchar = 'all') RETURNS setof varchar AS 
-$BODY$ DECLARE out varchar; DECLARE var varchar; DECLARE flag integer; DECLARE testFonction varchar; BEGIN
+$BODY$ DECLARE out varchar; DECLARE var varchar;DECLARE lesvariables varchar; DECLARE flag integer; DECLARE testFonction varchar; BEGIN
 --- Variable
 flag := 0;
 FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
@@ -313,9 +313,14 @@ FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
 	END LOOP;
 --- Commande
 CASE WHEN libFonction = 'all' THEN
-	out := 'Ajouter une des fonctions listée ci-dessous pour avoir sa description : SELECT * FROM hub_help(''fonction'');';RETURN next out;
+	out := '- Pour accéder à la description d''une fonction : SELECT * FROM hub_help(''fonction'');';RETURN next out;
+	out := '- Pour utiliser une fonction : SELECT * FROM fonction(''variables'');';RETURN next out;
 	FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
-		LOOP out := testFonction;RETURN next out; END LOOP;
+		LOOP lesvariables := '(';
+		FOR var IN EXECUTE 'SELECT id FROM ref.help_var WHERE "'||testFonction||'" = ''oui'';'
+			LOOP lesvariables := lesvariables||var||','; END LOOP;
+		EXECUTE 'SELECT trim(trailing '','' FROM '''||lesvariables||''')||'')''' INTO lesvariables;
+		out := 'SELECT * FROM '||testFonction||lesvariables;RETURN next out; END LOOP;
 WHEN flag = 1 THEN
 	out := '-------------------------'; RETURN next out; 
 	out := 'Nom de la Fonction = '||libFonction;RETURN next out; 
