@@ -409,10 +409,7 @@ CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS
 $BODY$ DECLARE out zz_log%rowtype; BEGIN
 CREATE TABLE IF NOT EXISTS "public".zz_log  ("libSchema" character varying,"libTable" character varying,"libChamp" character varying,"typLog" character varying,"libLog" character varying,"nbOccurence" character varying,"date" date);
 PERFORM hub_clone(libSchema);
-PERFORM hub_fsd('create',path);
-PERFORM hub_fsd('update',path);
-PERFORM hub_help('create',path);
-PERFORM hub_help('update',path);
+PERFORM hub_ref('create',path);
 --- Output
 RETURN 'Hub installé';
 END;$BODY$ LANGUAGE plpgsql;
