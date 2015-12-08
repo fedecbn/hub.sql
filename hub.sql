@@ -583,6 +583,7 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' OR jdd = 'meta' THEN
 ELSE EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'"."temp_metadonnees" WHERE "cdJdd" = '''||jdd||'''' INTO typJdd;
 	---
 END CASE;
+out."libLog" = '';
 
 --- Test concernant l'obligation
 CASE WHEN (typVerif = 'obligation' OR typVerif = 'all') THEN
@@ -672,6 +673,13 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 		END LOOP;
 	END LOOP;
 ELSE --- rien
+END CASE;
+
+--- Le 100%
+CASE WHEN out."libLog" = '' THEN
+	out."libTable" := '-'; out."libChamp" := '-'; out."libLog" := 'Données conformes'; out."nbOccurence" := '-'; return next out;
+	EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
+ELSE ---Rien
 END CASE;
 
 --- Log général
