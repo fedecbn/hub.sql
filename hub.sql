@@ -565,11 +565,13 @@ END CASE;
 --- Log
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 END;$BODY$ LANGUAGE plpgsql;
+
+
 ------------------------------------------
 --- Vérifications
 ------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif(libSchema varchar, jdd varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
-$BODY$ DECLARE out zz_log%rowtype;DECLARE typJdd varchar;DECLARE libTable varchar;DECLARE libChamp varchar;DECLARE typChamp varchar;DECLARE val varchar;DECLARE compte integer;BEGIN
+$BODY$ DECLARE out zz_log%rowtype;DECLARE typJdd varchar;DECLARE libTable varchar;DECLARE libChamp varchar;DECLARE typChamp varchar;DECLARE val varchar;DECLARE vocactrl varchar;DECLARE compte integer;BEGIN
 --- Output
 out."libSchema" := libSchema;out."typLog" := 'hub_verif';SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Variables
@@ -591,19 +593,19 @@ LOOP
 		CASE WHEN (compte > 0) THEN
 			--- log
 			out."libTable" := libTable; out."libChamp" := libChamp;out."libLog" := 'Champ obligatoire non renseigné - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
-			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
-		ELSE EXECUTE 'SELECT 1';
+			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''',''Champ obligatoire non renseigné'','''||out."nbOccurence"||''','''||out."date"||''');';
+		ELSE --- rien
 		END CASE;
 	END LOOP;
 END LOOP;
-ELSE SELECT 1;
+ELSE --- rien
 END CASE;
 
 --- Test concernant le typage des champs
 CASE WHEN (typVerif = 'type' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE obligation = ''Oui'''
+FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||';'
 	LOOP
-	FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''' AND obligation = ''Oui'''
+	FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''';'
 	LOOP	
 		compte := 0;
 		EXECUTE 'SELECT type FROM ref.ddd WHERE cd = '''||libChamp||'''' INTO typChamp;
@@ -621,12 +623,12 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHER
 		CASE WHEN (compte > 0) THEN
 			--- log
 			out."libTable" := libTable; out."libChamp" := libChamp;	out."libLog" := typChamp||' incorrecte - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
-			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
-		ELSE EXECUTE 'SELECT 1';
+			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||typChamp||'incorrecte'','''||out."nbOccurence"||''','''||out."date"||''');';
+		ELSE --- rien
 		END CASE;	
 		END LOOP;
 	END LOOP;
-ELSE SELECT 1;
+ELSE --- rien
 END CASE;
 
 --- Test concernant les doublon
@@ -640,22 +642,46 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 		CASE WHEN (compte > 0) THEN
 			--- log
 			out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := 'doublon(s) - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
-			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
-		ELSE EXECUTE 'SELECT 1';
+			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''',''doublon(s)'','''||out."nbOccurence"||''','''||out."date"||''');';
+		ELSE --- rien
 		END CASE;
 		END LOOP;
 	END LOOP;
-ELSE SELECT 1;
+ELSE --- rien
 END CASE;
+
+--- Test concernant le vocbulaire controlé
+CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
+FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
+	LOOP FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''';'
+		LOOP vocactrl := null; 
+		EXECUTE 'SELECT voca_ctrl FROM ref.ddd WHERE cd = '''||libChamp||''' ;' INTO vocactrl;
+		CASE WHEN vocactrl <> NULL THEN
+			compte := 0;
+			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL'  INTO compte;
+			CASE WHEN (compte > 0) THEN
+				--- log
+				out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := 'Valeur(s) non listée(s) - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+				EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''',''Valeur(s) non listée(s)'','''||out."nbOccurence"||''','''||out."date"||''');';
+			ELSE --- rien
+			END CASE;
+		ELSE --- rien
+		END CASE;
+		END LOOP;
+	END LOOP;
+ELSE --- rien
+END CASE;
+
 --- Log général
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''',''-'',''-'',''hub_verif'',''-'',''-'','''||out."date"||''');';
-RETURN;END;$BODY$ LANGUAGE plpgsql;
+--- RETURN;
+END;$BODY$ LANGUAGE plpgsql;
 
 ------------------------------------------
 --- Vérifications Plus
 ------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif_plus(libSchema varchar, libTable varchar, libChamp varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
-$BODY$ DECLARE out zz_log%rowtype; DECLARE champRefSelected varchar;DECLARE champRef varchar; DECLARE typJdd varchar; DECLARE typChamp varchar; BEGIN
+$BODY$ DECLARE out zz_log%rowtype; DECLARE champRefSelected varchar;DECLARE champRef varchar; DECLARE typJdd varchar; DECLARE typChamp varchar;DECLARE vocactrl varchar; BEGIN
 --- Output
 out."libSchema" := libSchema;out."typLog" := 'hub_verif_plus';SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Variables
@@ -668,7 +694,7 @@ CASE 	WHEN libTable LIKE 'metadonnees%' 				THEN 	champRef = 'cdJddPerm';typJdd 
 CASE WHEN (typVerif = 'obligation' OR typVerif = 'all') THEN
 FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||champ||'" IS NULL'
 	LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := compte||' occurence(s)'; return next out; END LOOP;
-ELSE EXECUTE 'SELECT 1';
+ELSE --- rien
 END CASE;
 
 --- Test concernant le typage des champs
@@ -689,7 +715,7 @@ CASE WHEN (typVerif = 'type' OR typVerif = 'all') THEN
 		ELSE --- le reste
 			EXECUTE 'SELECT 1';
 		END IF;
-ELSE EXECUTE 'SELECT 1';
+ELSE --- rien
 END CASE;
 
 --- Test concernant les doublon
@@ -698,8 +724,20 @@ CASE WHEN (typVerif = 'doublon' OR typVerif = 'all') THEN
 		LOOP EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE '||libChamp||' = '''||champRefSelected||''';' INTO champRefSelected;
 		out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
 		--- EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
-ELSE EXECUTE 'SELECT 1';
+ELSE --- rien
 END CASE;
+
+--- Test concernant le vocbulaire controlé
+CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
+	EXECUTE 'SELECT voca_ctrl FROM ref.ddd WHERE cd = '''||libChamp||''' ;' INTO vocactrl;
+	CASE WHEN vocactrl <> NULL THEN
+		EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL' INTO champRefSelected;
+		out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;
+	ELSE EXECUTE 'SELECT 1';
+	END CASE;
+ELSE --- rien
+END CASE;
+
 --- Log général
 --- EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''',''-'',''-'',''hub_verif'',''-'',''-'','''||out."date"||''');';
 RETURN;END;$BODY$ LANGUAGE plpgsql;
