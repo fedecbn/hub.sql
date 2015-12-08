@@ -595,7 +595,7 @@ LOOP
 		EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" IS NULL' INTO compte;
 		CASE WHEN (compte > 0) THEN
 			--- log
-			out."libTable" := libTable; out."libChamp" := libChamp;out."libLog" := 'Champ obligatoire non renseigné - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+			out."libTable" := libTable; out."libChamp" := libChamp;out."libLog" := 'Champ obligatoire non renseigné => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''obligation'');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
 			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''',''Champ obligatoire non renseigné'','''||out."nbOccurence"||''','''||out."date"||''');';
 		ELSE --- rien
 		END CASE;
@@ -625,7 +625,7 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||';'
 		END IF;
 		CASE WHEN (compte > 0) THEN
 			--- log
-			out."libTable" := libTable; out."libChamp" := libChamp;	out."libLog" := typChamp||' incorrecte - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+			out."libTable" := libTable; out."libChamp" := libChamp;	out."libLog" := typChamp||' incorrecte => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''type'');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
 			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||typChamp||'incorrecte'','''||out."nbOccurence"||''','''||out."date"||''');';
 		ELSE --- rien
 		END CASE;	
@@ -644,7 +644,7 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 		EXECUTE 'SELECT count('||libChamp||') FROM "'||libSchema||'"."temp_'||libTable||'" GROUP BY '||libChamp||' HAVING COUNT('||libChamp||') > 1' INTO compte;
 		CASE WHEN (compte > 0) THEN
 			--- log
-			out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := 'doublon(s) - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+			out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := 'doublon(s) => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''doublon'');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
 			EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''',''doublon(s)'','''||out."nbOccurence"||''','''||out."date"||''');';
 		ELSE --- rien
 		END CASE;
@@ -664,7 +664,7 @@ FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL'  INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := 'Valeur(s) non listée(s) - SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''','''||typVerif||''');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+				out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := 'Valeur(s) non listée(s) => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''vocactrl'');'; out."nbOccurence" := compte||' occurence(s)'; return next out;
 				EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''',''Valeur(s) non listée(s)'','''||out."nbOccurence"||''','''||out."date"||''');';
 			ELSE --- rien
 			END CASE;
@@ -702,8 +702,8 @@ CASE 	WHEN libTable LIKE 'metadonnees%' 				THEN 	champRef = 'cdJddPerm';typJdd 
 
 --- Test concernant l'obligation
 CASE WHEN (typVerif = 'obligation' OR typVerif = 'all') THEN
-FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||champ||'" IS NULL'
-	LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := compte||' occurence(s)'; return next out; END LOOP;
+FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" IS NULL'
+	LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := '-'; return next out; END LOOP;
 ELSE --- rien
 END CASE;
 
