@@ -692,7 +692,7 @@ DECLARE libTable varchar;
 DECLARE libChamp varchar;
 DECLARE typChamp varchar;
 DECLARE val varchar;
-DECLARE vocactrl varchar;
+DECLARE flag integer;
 DECLARE compte integer;
 BEGIN
 --- Output
@@ -778,9 +778,8 @@ END CASE;
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
 FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 	LOOP FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''';'
-		LOOP vocactrl := null; 
-		EXECUTE 'SELECT voca_ctrl FROM ref.ddd WHERE cd = '''||libChamp||''' ;' INTO vocactrl;
-		CASE WHEN vocactrl <> NULL THEN
+		LOOP EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE "typChamp" = '''||libChamp||''' ;' INTO flag;
+		CASE WHEN flag = 1 THEN
 			compte := 0;
 			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL'  INTO compte;
 			CASE WHEN (compte > 0) THEN
@@ -811,6 +810,7 @@ END;$BODY$ LANGUAGE plpgsql;
 ------------------------------------------
 --- Vérifications Plus
 ------------------------------------------
+--- Améliorer en mettant les identifiants "mère"
 CREATE OR REPLACE FUNCTION hub_verif_plus(libSchema varchar, libTable varchar, libChamp varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -818,7 +818,7 @@ DECLARE champRefSelected varchar;
 DECLARE champRef varchar;
 DECLARE typJdd varchar;
 DECLARE typChamp varchar;
-DECLARE vocactrl varchar;
+DECLARE flag integer;
 BEGIN
 --- Output
 out."libSchema" := libSchema;out."typLog" := 'hub_verif_plus';SELECT CURRENT_TIMESTAMP INTO out."date";
@@ -867,11 +867,11 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
-	EXECUTE 'SELECT voca_ctrl FROM ref.ddd WHERE cd = '''||libChamp||''' ;' INTO vocactrl;
-	CASE WHEN vocactrl <> NULL THEN
-		EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL' INTO champRefSelected;
-		out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;
-	ELSE EXECUTE 'SELECT 1';
+	EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE "typChamp" = '''||libChamp||''' ;' INTO flag;
+		CASE WHEN flag = 1 THEN
+		FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL'
+		LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out; END LOOP;
+	ELSE ---Rien
 	END CASE;
 ELSE --- rien
 END CASE;
