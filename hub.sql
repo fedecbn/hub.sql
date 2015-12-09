@@ -677,7 +677,7 @@ END CASE;
 
 --- Le 100%
 CASE WHEN out."libLog" = '' THEN
-	out."libTable" := '-'; out."libChamp" := '-'; out."libLog" := 'Données conformes'; out."nbOccurence" := '-'; return next out;
+	out."libTable" := '-'; out."libChamp" := '-'; out."libLog" := jdd||' conformes'; out."nbOccurence" := '-'; return next out;
 	EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 ELSE ---Rien
 END CASE;
@@ -703,7 +703,7 @@ CASE 	WHEN libTable LIKE 'metadonnees%' 				THEN 	champRef = 'cdJddPerm';typJdd 
 --- Test concernant l'obligation
 CASE WHEN (typVerif = 'obligation' OR typVerif = 'all') THEN
 FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" IS NULL'
-	LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := '-'; return next out; END LOOP;
+	LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out; END LOOP;
 ELSE --- rien
 END CASE;
 
@@ -712,16 +712,16 @@ CASE WHEN (typVerif = 'type' OR typVerif = 'all') THEN
 	EXECUTE 'SELECT type FROM ref.ddd WHERE cd = '''||libChamp||'''' INTO typChamp;
 		IF (typChamp = 'int') THEN --- un entier
 			FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\d+$''' 
-			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
+			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'float') THEN --- un float
 			FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\-?\d+\.\d+$'''
-			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
+			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'date') THEN --- une date
 			FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^[1,2][0-9]{2}[0-9]\-[0,1][0-9]\-[0-3][0-9]$'' AND "'||libChamp||'" !~ ''^[1,2][0-9]{2}[0-9]\-[0,1][0-9]$'' AND "'||libChamp||'" !~ ''^[1,2][0-9]{2}[0-9]$'''
-			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
+			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'boolean') THEN --- Boolean
 			FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^t$'' AND "'||libChamp||'" !~ ''^f$'''
-			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected||' à vérifier'; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
+			LOOP out."libTable" := libTable; out."libChamp" := libChamp; out."libLog" := champRefSelected; out."nbOccurence" := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSE --- le reste
 			EXECUTE 'SELECT 1';
 		END IF;
