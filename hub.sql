@@ -8,6 +8,27 @@
 CREATE TABLE IF NOT EXISTS "public"."zz_log" ("libSchema" character varying,"libTable" character varying,"libChamp" character varying,"typLog" character varying,"libLog" character varying,"nbOccurence" character varying,"date" date);
 
 ---------------------------------------------------------------------------------------------------------
+--- Ajout de données (utilisé lors du push)
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_add(libSchema varchar, tableRef varchar, champRef varchar, listJdd varchar) RETURNS setof zz_log  AS 
+$BODY$  DECLARE out zz_log%rowtype; DECLARE libTable varchar; DECLARE compte integer;DECLARE listeChamp1 varchar; DECLARE listeChamp2 varchar; 
+BEGIN
+FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||'''  ORDER BY table_name;'
+	LOOP compte := 0;listeChamp1 := '';listeChamp2 := '';
+	EXECUTE 'SELECT count(z."'||champRef||'") FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL AND z."cdJdd" IN ('||listJdd||')' INTO compte; 
+
+	CASE WHEN (compte > 0) THEN	
+		EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp1;
+		EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp2;
+		EXECUTE 'INSERT INTO "'||libSchema||'"."'||libTable||'" ('||listeChamp2||') SELECT '||listeChamp1||' FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL';
+		--- Log 
+		out."libTable" := libTable; out."libLog" := 'Ajout de '||champRef; out."nbOccurence" := compte||' occurence(s)'; return next out;
+	ELSE --- Rien
+	END CASE;	
+	END LOOP;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
 --- Suppression des données de la partie propre (à partir de celles présentes dans la partie temporaire)
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_checkout (libSchema varchar, jdd varchar = 'all') RETURNS setof zz_log  AS 
@@ -276,6 +297,7 @@ WHEN Jdd = 'data' OR Jdd = 'taxa' THEN
 	FOR cdJdd IN EXECUTE 'SELECT cdJdd FROM temp_metadonnees WHERE typJdd = '''||Jdd||''''
 		LOOP wheres := wheres||' "cdJdd" = '''||cdJdd||'''';END LOOP;
 END CASE;
+
 --- Commandes
 FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
 	LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" '||wheres||') TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
@@ -439,50 +461,47 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Mise à jour de la partie propre
 ------------------------------------------
 --- Ajouter la partie suppression? Ou hub_checkout
-CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar) RETURNS setof zz_log AS 
-$BODY$ DECLARE out zz_log%rowtype; DECLARE wheres varchar; DECLARE val varchar; DECLARE listeChamp1 varchar; DECLARE listeChamp2 varchar;  DECLARE compte integer; DECLARE format varchar; DECLARE tableListe varchar array; DECLARE libChamp varchar; DECLARE libTable varchar;  DECLARE champRef varchar;  DECLARE tableRef varchar; BEGIN
+CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar = 'all') RETURNS setof zz_log AS 
+$BODY$ 
+DECLARE out zz_log%rowtype; 
+DECLARE typJdd varchar; 
+DECLARE listJdd varchar; 
+DECLARE flag integer; 
+DECLARE wheres varchar; 
+DECLARE val varchar; 
+DECLARE listeChamp1 varchar; 
+DECLARE listeChamp2 varchar;  
+DECLARE compte integer; 
+DECLARE format varchar; 
+DECLARE tableListe varchar array; 
+DECLARE libChamp varchar; 
+DECLARE libTable varchar;  
+DECLARE champRef varchar;  
+DECLARE tableRef varchar; 
+BEGIN
 --- Variables
-CASE 	WHEN jdd = 'meta' THEN 	champRef = 'cdJddPerm';	tableRef = 'metadonnees'; 
-	WHEN jdd = 'data' THEN 	champRef = 'cdObsPerm';	tableRef = 'observation'; 
-	WHEN jdd = 'taxa' THEN 	champRef = 'cdEntPerm';	tableRef = 'entite'; 
-	ELSE 			champRef = ''; 		tableRef = '';END CASE;
+CASE WHEN Jdd <> 'data' AND Jdd <> 'taxa' THEN 	EXECUTE 'SELECT "typJdd" FROM temp_metadonnees WHERE cdJdd = '''||Jdd||'''' INTO typJdd;listJdd := jdd;	flag := 1;
+WHEN Jdd = 'data' OR Jdd = 'taxa' THEN 	typJdd := Jdd;	EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||typJdd||''';' INTO listJdd; flag := 1;
+ELSE typJdd := ''; flag := 0;
+END CASE;
+CASE WHEN typJdd = 'data' THEN 	champRef = 'cdObsPerm';	tableRef = 'observation'; 
+WHEN typJdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; 
+ELSE 	champRef = ''; 	tableRef = '';
+END CASE;
+
 --- Output
 out."libSchema" := libSchema; out."libChamp" := '-'; out."typLog" := 'hub_push';SELECT CURRENT_TIMESTAMP INTO out."date";
 
 --- Commandes
---- Pour les ajouts
-FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' ORDER BY table_name;'
-	LOOP
-	compte := 0;listeChamp1 := '';listeChamp2 := '';
-	EXECUTE 'SELECT count(z."'||champRef||'") FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL' INTO compte; 
+CASE WHEN flag = 1 THEN
+	PERFORM hub_add(libSchema, 'metadonnees', 'cdJddPerm', listJdd);  --- Ajout des métadonnées
+	PERFORM hub_add(libSchema, tableRef, champRef, listJdd);	--- Ajout des jdd
+	PERFORM hub_update(libSchema, 'metadonnees', 'cdJddPerm', listJdd); --- Modification
+	PERFORM hub_update(libSchema, tableRef, champRef, listJdd); --- Modification
+	out."libTable" := libTable; out."libLog" := jdd||' : push réalisé'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+ELSE out."libTable" := libTable; out."libLog" := jdd||' n''est pas un jeu de données valide'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+END CASE;
 
-	CASE WHEN (compte > 0) THEN	
-		EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp1;
-		EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp2;
-		EXECUTE 'INSERT INTO "'||libSchema||'"."'||libTable||'" ('||listeChamp2||') SELECT '||listeChamp1||' FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL';
-		--- Log 
-		out."libTable" := libTable; out."libLog" := 'Ajout de '||champRef; out."nbOccurence" := compte||' occurence(s)'; return next out;
-	ELSE --- Rien
-	END CASE;	
-	END LOOP;
-
---- Modification
-FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||jdd||' WHERE tbl_name <> ''releve'' '
-	LOOP
-	val := null;
-	wheres := 'WHERE 1=1';
-	FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||jdd||' WHERE tbl_name = '''||libTable||''''
-		LOOP wheres := wheres||' OR a."'||libChamp||'"::varchar <> b."'||libChamp||'"::varchar';
-		listeChamp1 := '"'||libChamp||'" = b."'||libChamp||'",';
-		END LOOP;
-	EXECUTE 'SELECT string_agg(''''''''||a."'||champRef||'"||'''''''','','') FROM "'||libSchema||'"."temp_'||libTable||'" a JOIN "'||libSchema||'"."'||libTable||'" b ON a."'||champRef||'" = b."'||champRef||'" '||wheres||';' INTO val;
-	val := rtrim(val,',');listeChamp1 := rtrim(listeChamp1,',');
-	CASE WHEN (compte > 0) THEN
-		--- EXECUTE 'UPDATE "'||libSchema||'"."'||libTable||'" a SET '||listeChamp||' FROM (SELECT * FROM "'||libSchema||'"."temp_'||libTable||'") b WHERE a."'||champRef||'" IN ('||val||')';
-		out."libTable" := libTable; out."libLog" := 'Modification sur la table '||libTable; out."nbOccurence" := compte||' occurence(s)'; return next out;
-	ELSE --- Rien
-	END CASE;	
-	END LOOP;
 --- Log général
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''',''-'',''-'',''hub_push'',''-'',''-'','''||out."date"||''');';
 END;$BODY$ LANGUAGE plpgsql;
@@ -568,6 +587,27 @@ END CASE;
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 END;$BODY$ LANGUAGE plpgsql;
 
+------------------------------------------
+--- Modification lors d'un push
+------------------------------------------
+CREATE OR REPLACE FUNCTION hub_update(libSchema varchar, tableRef varchar, champRef varchar, listJdd varchar) RETURNS setof zz_log  AS 
+$BODY$  DECLARE out zz_log%rowtype; DECLARE libTable varchar; DECLARE compte varchar;DECLARE listeChamp varchar;DECLARE val varchar;DECLARE wheres varchar;DECLARE wheres2 varchar;
+BEGIN
+FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||'''  ORDER BY table_name;'
+	LOOP
+	val := null;
+	wheres := 'WHERE "cdJdd" IN ('||listJdd||') ';
+	EXECUTE 'SELECT string_agg(''"''||column_name||''" = b.''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||'''' INTO listeChamp;
+	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::varchar <> b.''"''||column_name||''"::varchar'','' OR '')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||'''' INTO wheres2;
+	EXECUTE 'SELECT string_agg(''''''''||b."'||champRef||'"||'''''''','','') FROM "'||libSchema||'"."temp_'||libTable||'" a JOIN "'||libSchema||'"."'||libTable||'" b ON a."'||champRef||'" = b."'||champRef||'" '||wheres||' AND ('||wheres2||');' INTO val;
+
+	CASE WHEN val <> null THEN
+		--- EXECUTE 'UPDATE "'||libSchema||'"."'||libTable||'" a SET '||listeChamp||' FROM (SELECT * FROM "'||libSchema||'"."temp_'||libTable||'") b WHERE a."'||champRef||'" IN ('||val||')';
+		out."libTable" := libTable; out."libLog" := 'Modification sur la table '||libTable; out."nbOccurence" := compte||' occurence(s)'; return next out;
+	ELSE out."libTable" := libTable; out."libLog" := 'Aucune modification appliquée'; out."nbOccurence" := compte||' occurence(s)'; return next out;
+	END CASE;	
+	END LOOP;
+END;$BODY$ LANGUAGE plpgsql;
 
 ------------------------------------------
 --- Vérifications
