@@ -29,6 +29,7 @@ out."libSchema" := libSchema; out."typLog" := 'hub_add';SELECT CURRENT_TIMESTAMP
 FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;'
 	LOOP compte := 0;listeChamp1 := '';listeChamp2 := '';
 	EXECUTE 'SELECT count(z."'||champRef||'") FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL AND z."cdJdd" IN ('||listJdd||')' INTO compte; 
+	
 	CASE WHEN (compte > 0) THEN	
 		CASE WHEN action = 'push' THEN
 			EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp1;
@@ -643,7 +644,7 @@ END;$BODY$ LANGUAGE plpgsql;
 ------------------------------------------
 --- Modification lors d'un push
 ------------------------------------------
-CREATE OR REPLACE FUNCTION hub_update(libSchema varchar, tableRef varchar, champRef varchar, jdd varchar,action varchar = 'diff') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_update(libSchema varchar, tableRef varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype; 
 DECLARE listJdd varchar; 
@@ -663,13 +664,13 @@ out."libSchema" := libSchema; out."typLog" := 'hub_update';SELECT CURRENT_TIMEST
 FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||'''  ORDER BY table_name;'
 	LOOP
 	val := null;
-	EXECUTE 'SELECT string_agg(''"''||column_name||''" = b."''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||'''' INTO listeChamp;
+	EXECUTE 'SELECT string_agg(''"''||column_name||''" = b."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||'''' INTO listeChamp;
 	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::varchar <> b."''||column_name||''"::varchar'','' OR '')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||'''' INTO wheres;
 	EXECUTE 'SELECT count(a."'||champRef||'") FROM "'||libSchema||'"."temp_'||libTable||'" a JOIN "'||libSchema||'"."'||libTable||'" b ON a."'||champRef||'" = b."'||champRef||'" WHERE a."cdJdd" IN ('||listJdd||') AND ('||wheres||');' INTO compte;
 
 	CASE WHEN (compte > 0) THEN
 		CASE WHEN action = 'push' THEN
-			EXECUTE 'SELECT string_agg(''''''''||b."'||champRef||'"||'''''''','','') FROM "'||libSchema||'"."temp_'||libTable||'" a JOIN "'||libSchema||'"."'||libTable||'" b ON a."'||champRef||'" = b."'||champRef||'" '||wheres||' AND ('||wheres2||');' INTO val;
+			EXECUTE 'SELECT string_agg(''''''''||b."'||champRef||'"||'''''''','','') FROM "'||libSchema||'"."temp_'||libTable||'" a JOIN "'||libSchema||'"."'||libTable||'" b ON a."'||champRef||'" = b."'||champRef||'" WHERE a."cdJdd" IN ('||listJdd||') AND ('||wheres||');' INTO val;
 			EXECUTE 'UPDATE "'||libSchema||'"."'||libTable||'" a SET '||listeChamp||' FROM (SELECT * FROM "'||libSchema||'"."temp_'||libTable||'") b WHERE a."'||champRef||'" IN ('||val||')';
 			out."libTable" := libTable; out."libLog" := 'Modification sur la table '||libTable; out."nbOccurence" := compte||' occurence(s)'; return next out;
 		WHEN action = 'diff' THEN
