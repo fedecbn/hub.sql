@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS "public"."zz_log" ("libSchema" character varying,"lib
 CREATE OR REPLACE FUNCTION hub_add(libSchema varchar, tableRef varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
+DECLARE out2 zz_log%rowtype;
 DECLARE libTable varchar;
 DECLARE listJdd varchar;
 DECLARE compte integer;
@@ -27,10 +28,9 @@ END CASE;
 out."libSchema" := libSchema; out."typLog" := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out."date"; ---log
 
 FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;'
-	LOOP 
+	LOOP out."libTable" := libTable;
 	--- compte := 0;listeChamp1 := '';listeChamp2 := '';
 	--- Recherche des concepts (obsevation, jdd ou entite) absent dans la partie propre et absent dans la partie temporaire
-	out."libTable" := libTable; ---Log
 	EXECUTE 'SELECT count(z."'||champRef||'") FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL AND z."cdJdd" IN ('||listJdd||')' INTO compte; 
 	
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
@@ -39,12 +39,25 @@ FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tabl
 			EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp1;
 			EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ' INTO listeChamp2;
 			EXECUTE 'INSERT INTO "'||libSchema||'"."'||libTable||'" ('||listeChamp2||') SELECT '||listeChamp1||' FROM "'||libSchema||'"."temp_'||libTable||'" z LEFT JOIN "'||libSchema||'"."'||libTable||'" a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL';
-			out."libChamp" := champRef; out."libLog" := 'Push : Concepts ajouté'; SELECT * FROM hub_log (libSchema, out);  ---log
+			---log
+			out."libChamp" := champRef; 
+			out."libLog" := 'Push : Concepts ajouté'; 
+			PERFORM hub_log (libSchema, out);RETURN NEXT out;
 		WHEN action = 'diff' THEN --- cas utilisé par hub_diff
-			 out."libChamp" := champRef; out."libLog" := 'Diff : Concepts à ajouter'; SELECT * FROM hub_log (libSchema, out);  ---log
-		ELSE out."libChamp" := '-'; out."libLog" := 'ERREUR : sur champ action = '||action; SELECT * FROM hub_log (libSchema, out);  ---log
+			 ---log
+			out."libChamp" := champRef; 
+			out."libLog" := 'Diff : Concepts à ajouter'; 
+			PERFORM hub_log (libSchema, out);RETURN NEXT out;
+		ELSE ---log
+		out."libChamp" := '-'; 
+		out."libLog" := 'ERREUR : sur champ action = '||action; 
+		PERFORM hub_log (libSchema, out);RETURN NEXT out;
 		END CASE;
-	ELSE out."libChamp" := '-'; out."libLog" := 'Aucun ajout nécessaire';out."nbOccurence" := '-'; SELECT * FROM hub_log (libSchema, out);  ---log
+	ELSE ---log
+	out."libChamp" := '-'; 
+	out."libLog" := 'Aucun ajout nécessaire';
+	out."nbOccurence" := '-'; 
+	PERFORM hub_log (libSchema, out); RETURN NEXT out;
 	END CASE;	
 	END LOOP;
 END;$BODY$ LANGUAGE plpgsql;
@@ -52,12 +65,12 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- hub_log = facilite l'enregistrement dans le Log
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log) RETURNS void AS 
 $BODY$ 
 BEGIN
-EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''|out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
-EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
-RETURN next outp;END;$BODY$ LANGUAGE plpgsql;
+EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||outp."libSchema"||''','''||outp."libTable"||''','''||outp."libChamp"||''','''||outp."typLog"||''','''||outp."libLog"||''','''||outp."nbOccurence"||''','''||outp."date"||''');';
+EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||outp."libSchema"||''','''||outp."libTable"||''','''||outp."libChamp"||''','''||outp."typLog"||''','''||outp."libLog"||''','''||outp."nbOccurence"||''','''||outp."date"||''');';
+END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 --- Suppression des données de la partie propre (à partir de celles présentes dans la partie temporaire)
@@ -244,7 +257,7 @@ DECLARE champRef varchar;
 DECLARE tableRef varchar;
 BEGIN
 --- Variables Jdd
-CASE WHEN Jdd <> 'data' AND Jdd <> 'taxa' THEN 	EXECUTE 'SELECT "typJdd" FROM temp_metadonnees WHERE cdJdd = '''||Jdd||''';' INTO typJdd;	
+CASE WHEN Jdd <> 'data' AND Jdd <> 'taxa' THEN 	EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||Jdd||''';' INTO typJdd;	
 WHEN Jdd = 'data' OR Jdd = 'taxa' THEN 	typJdd := Jdd;
 ELSE typJdd := ''; 
 END CASE;
