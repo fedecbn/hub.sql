@@ -677,7 +677,7 @@ END CASE;
 
 --- Le 100%
 CASE WHEN out."libLog" = '' THEN
-	out."libTable" := '-'; out."libChamp" := '-'; out."libLog" := jdd||' conformes'; out."nbOccurence" := '-'; return next out;
+	out."libTable" := '-'; out."libChamp" := '-'; out."libLog" := jdd||' conformes pour '||typVerif; out."nbOccurence" := '-'; return next out;
 	EXECUTE 'INSERT INTO "'||libSchema||'".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 ELSE ---Rien
 END CASE;
