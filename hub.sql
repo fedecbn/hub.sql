@@ -183,8 +183,21 @@ RETURN next out; END; $BODY$ LANGUAGE plpgsql;
 --- Attention, ne gère pas les relevés
 --- Fonction à finaliser par rapport aux cdJdd (vs data et taxa)
 CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar) RETURNS setof zz_log  AS 
-$BODY$ DECLARE out zz_log%rowtype; DECLARE flag integer;DECLARE presence_jdd varchar;DECLARE wheres varchar; DECLARE cdJdd varchar;DECLARE typJdd varchar;DECLARE whereJdd varchar; DECLARE compte integer; DECLARE tableListe varchar array; 
-DECLARE libChamp varchar; DECLARE libTable varchar;  DECLARE champRef varchar;  DECLARE tableRef varchar; BEGIN
+$BODY$ 
+DECLARE out zz_log%rowtype;
+DECLARE flag integer;
+DECLARE presence_jdd varchar;
+DECLARE wheres varchar;
+DECLARE cdJdd varchar;
+DECLARE typJdd varchar;
+DECLARE whereJdd varchar;
+DECLARE compte integer;
+DECLARE tableListe varchar array;
+DECLARE libChamp varchar;
+DECLARE libTable varchar;
+DECLARE champRef varchar;
+DECLARE tableRef varchar;
+BEGIN
 --- Variables Jdd
 EXECUTE 'SELECT 1 FROM "'||libSchema||'"."temp_metadonnees" WHERE "cdJdd" = '''||jdd||'''' INTO presence_jdd;
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
@@ -203,6 +216,7 @@ END CASE;
 CASE 	WHEN typJdd = 'data' THEN 	champRef = 'cdObsPerm';	tableRef = 'observation'; 
 	WHEN typJdd = 'taxa' THEN 	champRef = 'cdEntPerm';	tableRef = 'entite'; 
 	ELSE 				champRef = ''; 		tableRef = '';END CASE;
+
 --- Output
 out."libSchema" := libSchema; out."libChamp" := '-'; out."typLog" := 'hub_diff';SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Commandes
@@ -480,13 +494,13 @@ DECLARE champRef varchar;
 DECLARE tableRef varchar; 
 BEGIN
 --- Variables
-CASE WHEN Jdd <> 'data' AND Jdd <> 'taxa' THEN 	EXECUTE 'SELECT "typJdd" FROM temp_metadonnees WHERE cdJdd = '''||Jdd||'''' INTO typJdd;listJdd := jdd;	flag := 1;
-WHEN Jdd = 'data' OR Jdd = 'taxa' THEN 	typJdd := Jdd;	EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||typJdd||''';' INTO listJdd; flag := 1;
-ELSE typJdd := ''; flag := 0;
+CASE WHEN Jdd <> 'data' AND Jdd <> 'taxa' THEN 	EXECUTE 'SELECT "typJdd" FROM temp_metadonnees WHERE cdJdd = '''||Jdd||'''' INTO typJdd;listJdd := jdd;	
+WHEN Jdd = 'data' OR Jdd = 'taxa' THEN 	typJdd := Jdd;	EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||typJdd||''';' INTO listJdd;
+ELSE typJdd := ''; 
 END CASE;
-CASE WHEN typJdd = 'data' THEN 	champRef = 'cdObsPerm';	tableRef = 'observation'; 
-WHEN typJdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; 
-ELSE 	champRef = ''; 	tableRef = '';
+CASE WHEN typJdd = 'data' THEN 	champRef = 'cdObsPerm';	tableRef = 'observation'; flag := 1;
+WHEN typJdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
+ELSE 	champRef = ''; 	tableRef = '';flag := 0;
 END CASE;
 
 --- Output
