@@ -8,7 +8,18 @@
 CREATE TABLE IF NOT EXISTS "public"."zz_log" ("libSchema" character varying,"libTable" character varying,"libChamp" character varying,"typLog" character varying,"libLog" character varying,"nbOccurence" character varying,"date" date);
 
 ---------------------------------------------------------------------------------------------------------
---- hub_add = Ajout de données (fonction utilisée par une autre fonction)
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_add 
+--- Description : Ajout de données (fonction utilisée par une autre fonction)
+--- Variables :
+--- o schemaSource = Nom du schema source
+--- o schemaDest = Nom du schema de destination
+--- o tableSource  = Nom de la table source
+--- o tableDest  = Nom de la table de destination
+--- o champRef = nom du champ de référence utilisé pour tester la jointure entre la source et la destination
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o action = type d'action à réaliser - valeur possibles : 'push_total', 'push_diff' et 'diff'(par défaut)
+---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Attention listJdd null sur jdd erroné
 CREATE OR REPLACE FUNCTION hub_add(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar,champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
@@ -24,7 +35,7 @@ DECLARE listeChamp2 varchar;
 DECLARE jointure varchar; 
 DECLARE flag varchar; 
 BEGIN
---Variable
+--Variables
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
 ELSE listJdd := ''||jdd||'';
 END CASE;
@@ -40,28 +51,28 @@ destination := '"'||schemaDest||'"."'||tableDest||'"';
 --- Output&Log
 out."libSchema" := schemaSource; out."libTable" := tableSource; out."libChamp" := '-'; out."typLog" := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Commande
-CASE WHEN action = 'push_total' THEN
+CASE WHEN action = 'push_total' THEN --- CAS utilisé pour ajouter en masse.
 	EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
 	EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
 	EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' z WHERE "cdJdd" IN ('||listJdd||')';
 		out."nbOccurence" := 'total'; out."libLog" := 'Jdd complet(s) ajouté(s)'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 
-WHEN action = 'push_diff' THEN
-	--- Recherche des concepts (obsevation, jdd ou entite) absent dans la partie propre et absent dans la partie temporaire
+WHEN action = 'push_diff' THEN --- CAS utilisé pour ajouter les différences
+	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
 	EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b LEFT JOIN '||destination||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND b."cdJdd" IN ('||listJdd||')' INTO compte; 
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
 		EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
 		EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
-		EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' z LEFT JOIN '||source||' a ON z."'||champRef||'" = a."'||champRef||'" WHERE a."'||champRef||'" IS NULL AND "cdJdd" IN ('||listJdd||')';
+		EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' z LEFT JOIN '||source||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND "cdJdd" IN ('||listJdd||')';
 		out."nbOccurence" := compte||' occurence(s)'; out."libLog" := 'Concept(s) ajouté(s)'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	ELSE out."nbOccurence" := '-'; out."libLog" := 'Aucune différence'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	END CASE;	
 
-WHEN action = 'diff' THEN --- cas utilisé par hub_diff
-	--- Recherche des concepts (obsevation, jdd ou entite) absent dans la partie propre et absent dans la partie temporaire
+WHEN action = 'diff' THEN --- CAS utilisé pour analyser les différences
+	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
 	EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b LEFT JOIN '||destination||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND b."cdJdd" IN ('||listJdd||')' INTO compte; 
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		out."nbOccurence" := compte||' occurence(s)'; out."libLog" := 'Concept(s) à ajouter'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+		out."nbOccurence" := compte||' occurence(s)'; out."libLog" := 'Valeur supplémentaire : '||tableSource||' => '||tableDest; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	ELSE out."nbOccurence" := '-'; out."libLog" := 'Aucune différence'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	END CASE;
 ELSE out."libChamp" := '-'; out."libLog" := 'ERREUR : sur champ action = '||action; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
@@ -69,7 +80,14 @@ END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
---- hub_clear : Nettoyage des tables (temporaires ou propre)
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_clear 
+--- Description : Nettoyage des tables (partie temporaires ou propre)
+--- Variables :
+--- o libSchema = Nom du schema
+--- o jdd = Jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o typPartie = type de la partie à nettoyer - valeur possibles : 'propre', 'temp' (par défaut)
+---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_clear(libSchema varchar, jdd varchar, typPartie varchar = 'temp') RETURNS setof zz_log  AS 
 $BODY$
@@ -79,27 +97,19 @@ DECLARE prefixe varchar;
 DECLARE libTable varchar;
 DECLARE listJdd varchar;
 BEGIN
---- Variables - vérification typPartie (propre ou temporaire)
-CASE 	WHEN typPartie = 'temp' 	THEN 	flag :=1; prefixe = 'temp_';
-	WHEN typPartie = 'propre' 	THEN 	flag :=1; prefixe = '';
-	ELSE 					flag :=0; END CASE;
---- Variables 2
-CASE WHEN flag = 1 THEN
-	CASE WHEN jdd = 'all' 	THEN EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees";' INTO listJdd;flag :=2;
-	WHEN jdd = 'data' OR jdd = 'taxa' 	THEN EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;flag :=2;
-	ELSE EXECUTE 'SELECT "cdJdd" FROM "'||libSchema||'"."temp_metadonnees" WHERE "cdJdd" = '''||jdd||''';' INTO listJdd; CASE WHEN typJdd <> null THEN flag :=2; listJdd := ''||jdd||''; ELSE flag :=0; END CASE; 
-	END CASE;
-END CASE;
+--- Variables 
+CASE WHEN typPartie = 'temp' THEN flag :=1; prefixe = 'temp_'; WHEN typPartie = 'propre' THEN flag :=1; prefixe = ''; ELSE flag :=0; END CASE;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' 	THEN EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := jdd; 
 --- Output&Log
 out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_clear';out."nbOccurence" := '-'; SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Commandes
-CASE WHEN flag = 2 THEN
+CASE WHEN flag = 1 THEN
 	FOR libTable in EXECUTE 'SELECT table_name FROM information_schema.tables WHERE table_schema = '''||libSchema||''' AND table_name NOT LIKE ''temp_%'' AND table_name NOT LIKE ''zz_%'';'
 		LOOP EXECUTE 'DELETE FROM "'||libSchema||'"."'||prefixe||libTable||'" WHERE "cdJdd" IN ('||listJdd||');'; 
 		END LOOP;
 	---log---
 	out."libLog" = jdd||' effacé de la partie '||typPartie;
-WHEN flag = 1 THEN out."libLog" = 'ERREUR : mauvais jdd : '||jdd;
 ELSE out."libLog" = 'ERREUR : mauvais typPartie : '||typPartie;
 END CASE;
 --- Output&Log
@@ -107,7 +117,12 @@ PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
---- hub_clone : Création d'un hub complet----------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_clone 
+--- Description : Création d'un hub complet
+--- Variables :
+--- o libSchema = Nom du schema
+---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_clone(libSchema varchar) RETURNS setof zz_log AS 
 $BODY$ 
@@ -188,9 +203,19 @@ END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_del = Suppression de données (fonction utilisée par une autre fonction)
+--- Nom : hub_del 
+--- Description : Suppression de données (fonction utilisée par une autre fonction)
+--- Variables :
+--- o schemaSource = Nom du schema source
+--- o schemaDest = Nom du schema de destination
+--- o tableSource  = Nom de la table source
+--- o tableDest  = Nom de la table de destination
+--- o champRef = nom du champ de référence utilisé pour tester la jointure entre la source et la destination
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o action = type d'action à réaliser - valeur possibles : 'push_total', 'push_diff' et 'diff'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+
 CREATE OR REPLACE FUNCTION hub_del(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
@@ -238,10 +263,16 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_diff : Analyse des différences entre la partie temporaire et la partie propre
+--- Nom : hub_diff 
+--- Description : Analyse des différences entre une source et une cible
+--- Variables :
+--- o libSchema = Nom du schema à analyser
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o typeAction = type d'action à réaliser - valeur possibles : 'del' et 'add'(par défaut)
+--- o mode = mode d'utilisation - valeur possibles : '2' = inter-schema et '1'(par défaut) = intra-schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar,mode integer = 1) RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar,typAction varchar = 'add',mode integer = 1) RETURNS setof zz_log  AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
 DECLARE flag integer;
@@ -256,18 +287,21 @@ DECLARE tableRef varchar;
 DECLARE nothing varchar;
 BEGIN
 --- Variables
-CASE 	WHEN jdd = 'data' THEN champRef = 'cdObsPerm'; tableRef = 'observation'; flag := 1;
-	WHEN jdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
-	ELSE EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||jdd||''';' INTO typJdd;
-		CASE 	WHEN typJdd = 'data' THEN champRef = 'cdObsPerm'; tableRef = 'observation'; flag := 1;
-			WHEN typJdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
-			ELSE flag := 0;
-		END CASE;
+CASE WHEN jdd = 'data' THEN 
+	champRef = 'cdObsPerm'; tableRef = 'observation'; flag := 1;
+WHEN jdd = 'taxa' THEN 
+	champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
+ELSE 
+	EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||jdd||''';' INTO typJdd;
+	CASE WHEN typJdd = 'data' THEN champRef = 'cdObsPerm'; tableRef = 'observation'; flag := 1;
+	WHEN typJdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
+	ELSE flag := 0;
 	END CASE;
+END CASE;
 --- mode 1 = intra Shema / mode 2 = entre shema et agregation
 CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; ELSE flag :=0; END CASE;
 --- Commandes
-CASE WHEN flag = 1 THEN
+CASE WHEN typAction = 'add' AND flag = 1 THEN
 	--- Metadonnees
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
@@ -275,7 +309,7 @@ CASE WHEN flag = 1 THEN
 			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
 		SELECT * INTO out FROM  hub_update(schemaSource,schemaDest, tableSource, tableDest ,'cdJddPerm', jdd,'diff'); 
 			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
-		SELECT * INTO out FROM  hub_del(schemaSource,schemaDest, tableSource, tableDest ,'cdJddPerm', jdd,'diff'); 
+		SELECT * INTO out FROM  hub_add(schemaDest,schemaSource, tableDest, tableSource ,'cdJddPerm', jdd,'diff'); --- sens inverse (champ présent dans le propre et absent dans le temporaire)
 			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
 	END LOOP;
 	--- Données
@@ -285,6 +319,18 @@ CASE WHEN flag = 1 THEN
 			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
 		SELECT * INTO out FROM  hub_update(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd,'diff'); 
 			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+		SELECT * INTO out FROM  hub_add(schemaDest,schemaSource, tableDest, tableSource ,champRef, jdd,'diff'); --- sens inverse (champ présent dans le propre et absent dans le temporaire)
+			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+	END LOOP;
+WHEN typAction = 'del' AND flag = 1 THEN
+	--- Metadonnees
+	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
+		SELECT * INTO out FROM  hub_del(schemaSource,schemaDest, tableSource, tableDest ,'cdJddPerm' , jdd ,'diff'); 
+			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+	END LOOP;
+	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM  hub_del(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd,'diff'); 
 			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
 	END LOOP;
@@ -295,7 +341,10 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_drop : Supprimer un hub dans sa totalité
+--- Nom : hub_drop 
+--- Description : Supprimer un hub dans sa totalité
+--- Variables :
+--- o libSchema = Nom du schema à analyser
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_drop(libSchema varchar) RETURNS setof zz_log AS 
@@ -317,7 +366,13 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_export : Exporter les données depuis un hub
+--- Nom : hub_export 
+--- Description : Exporter les données depuis un hub
+--- Variables :
+--- o libSchema = Nom du schema à analyser
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o path = chemin vers le dossier dans lequel on souhaite exporter les données
+--- o format = format d'export - valeur possibles : 'sinp' et 'fcbn'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn') RETURNS setof zz_log  AS 
@@ -353,23 +408,10 @@ END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_extract : Extraction de données selon une liste de taxon
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_extract (libSchema varchar,Jdd varchar, path varchar) RETURNS setof zz_log  AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-BEGIN
----
----
---- Output
-out."libSchema" := libSchema; out."libChamp" := '-'; out."typLog" := 'hub_extract';out."libLog" := 'Fonction non implémentée';SELECT CURRENT_TIMESTAMP INTO out."date";PERFORM hub_log (libSchema, out);
-RETURN next out;END;$BODY$ LANGUAGE plpgsql;
-
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- hub_help : Création de l'aide et Accéder à la description d'un fonction
+--- Nom : hub_help 
+--- Description : Création de l'aide et Accéder à la description d'un fonction
+--- Variables :
+--- o libFonction = Nom de la fonction à décrire (par défaut, 'all' ==> liste routes les fonctions)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_help(libFonction varchar = 'all') RETURNS setof varchar AS 
@@ -417,7 +459,12 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_idPerm : Production des identifiants uniques
+--- Nom : hub_idPerm 
+--- Description : Production des identifiants uniques
+--- Variables :
+--- o libSchema = Nom du schema
+--- o nomDomaine = nom du domaine utilisé pour produire l'identifiant permanent (avec http://)
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_idPerm(libSchema varchar, nomDomaine varchar, jdd varchar) RETURNS setof zz_log AS 
@@ -449,10 +496,14 @@ FOR listTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHE
 	END LOOP;
 END; $BODY$ LANGUAGE plpgsql;
 
-
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_import : Importer des données (fichiers CSV) dans un hub
+--- Nom : hub_import 
+--- Description : Importer des données (fichiers CSV) dans un hub
+--- Variables :
+--- o libSchema = Nom du schema
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o path = chemin vers le dossier dans lequel on souhaite exporter les données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar) RETURNS setof zz_log AS 
@@ -496,7 +547,10 @@ END; $BODY$  LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_install : Installe le hub en local
+--- Nom : hub_install 
+--- Description : Installe le hub en local (concataine la construction d'un hub et l'installation des référentiels)
+--- Variables :
+--- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS setof zz_log AS 
@@ -510,30 +564,70 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- hub_pull : Récupération d'un jeu de données depuis la partie propre vers la partie temporaire
+--- Nom : hub_pull 
+--- Description : Récupération d'un jeu de données depuis la partie propre vers la partie temporaire
+--- Variables :
+--- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_pull(source varchar, destination varchar, jdd varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_pull(libSchema varchar,jdd varchar, mode integer = 1) RETURNS setof zz_log AS 
 $BODY$
+$BODY$ 
 DECLARE out zz_log%rowtype; 
-DECLARE liste varchar array;
-DECLARE tableName varchar;
+DECLARE flag integer; 
+DECLARE typJdd varchar; 
+DECLARE libTable varchar; 
+DECLARE schemaSource varchar; 
+DECLARE schemaDest varchar; 
+DECLARE tableSource varchar; 
+DECLARE tableDest varchar; 
+DECLARE champRef varchar; 
+DECLARE tableRef varchar; 
+DECLARE nothing varchar; 
+
 BEGIN
-EXECUTE 'SELECT ARRAY(SELECT tablename FROM pg_tables WHERE tablename LIKE ''temp_%'' AND schemaname = '''||source||''') ;' INTO liste;
-FOREACH tableName IN ARRAY liste
-	LOOP
-	EXECUTE 'DELETE FROM "'||destination||'"."'||tableName||'" WHERE "cdJdd" = '''||jdd||'''; ';
-	EXECUTE 'INSERT INTO "'||destination||'"."'||tableName||'" SELECT DISTINCT * FROM "'||source||'"."'||tableName||'" WHERE "cdJdd" = '''||jdd||''';';
+--- Variables Jdd
+CASE WHEN jdd = 'data' THEN champRef = 'cdObsPerm'; tableRef = 'observation'; flag := 1;
+	WHEN jdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
+	ELSE EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||jdd||''';' INTO typJdd;
+		CASE WHEN typJdd = 'data' THEN champRef = 'cdObsPerm'; tableRef = 'observation'; flag := 1;
+			WHEN typJdd = 'taxa' THEN champRef = 'cdEntPerm';	tableRef = 'entite'; flag := 1;
+			ELSE flag := 0;
+		END CASE;
+	END CASE;
+--- mode 1 = intra Shema / mode 2 = entre shema et agregation
+CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; ELSE flag :=0; END CASE;
+
+--- Commandes
+--- Remplacement total (NB : equivalent au push 'replace' mais dans l'autre sens)
+CASE flag = 1 THEN
+	SELECT * INTO out FROM hub_clear(libSchema, jdd, 'temp'); return next out;
+	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP
+		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
+		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest ,'cdJddPerm', jdd, 'push_total'); 
+			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
 	END LOOP;
---- Output&Log
-out."libSchema" := source;out."libChamp" := '-';out."libTable" := '-';out."typLog" := 'hub_pull';out."libLog" := 'Jeu de données '||jdd||' transféré de '||source||' à '||destination ;out."nbOccurence" := '-'; SELECT CURRENT_TIMESTAMP INTO out."date";PERFORM hub_log (source, out);RETURN next out;
+	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
+		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , champRef, jdd, 'push_total'); 
+			CASE WHEN out."nbOccurence" <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+	END LOOP;
+ELSE ---Log
+	out."libSchema" := libSchema; out."libChamp" := '-'; out."typLog" := 'hub_pull';SELECT CURRENT_TIMESTAMP INTO out."date"; out."libLog" := 'ERREUR : sur champ jdd = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END CASE;
 END; $BODY$ LANGUAGE plpgsql;
 
-------------------------------------------
---- hub_push = Mise à jour de la partie propre
-------------------------------------------
---- Ajouter la partie suppression? Ou hub_checkout
---- Ajouter la partie 'all'
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_push 
+--- Description : Mise à jour des données (on pousse les données)
+--- Variables :
+--- o libSchema = Nom du schema à analyser
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o typAction = type d'action à réaliser - valeur possibles : 'del', 'add' et 'replace'(par défaut)
+--- o mode = mode d'utilisation - valeur possibles : '2' = inter-schema et '1'(par défaut) = intra-schema
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar, typAction varchar = 'replace', mode integer = 1) RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype; 
@@ -610,9 +704,15 @@ ELSE ---Log
 END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
-------------------------------------------
---- Création des référentiels
-------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_ref 
+--- Description : Création des référentiels
+--- Variables :
+--- o typAction = type d'action à réaliser - valeur possibles : 'del', 'add' et 'replace'(par défaut)
+--- o path = chemin vers le dossier dans lequel on souhaite exporter les données
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_ref(typAction varchar, path varchar = '/home/hub/00_ref/') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -699,9 +799,20 @@ END CASE;
 EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''','''||out."libTable"||''','''||out."libChamp"||''','''||out."typLog"||''','''||out."libLog"||''','''||out."nbOccurence"||''','''||out."date"||''');';
 END;$BODY$ LANGUAGE plpgsql;
 
-------------------------------------------
---- hub_update : Modification lors d'un push
-------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_update 
+--- Description : Mise à jour de données (fonction utilisée par une autre fonction)
+--- Variables :
+--- o schemaSource = Nom du schema source
+--- o schemaDest = Nom du schema de destination
+--- o tableSource  = Nom de la table source
+--- o tableDest  = Nom de la table de destination
+--- o champRef = nom du champ de référence utilisé pour tester la jointure entre la source et la destination
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o action = type d'action à réaliser - valeur possibles : 'push_total', 'push_diff' et 'diff'(par défaut)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_update(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype; 
@@ -753,10 +864,16 @@ END CASE;
 
 END;$BODY$ LANGUAGE plpgsql;
 
-------------------------------------------
---- Vérifications
-------------------------------------------
---- Jaouter la partie cdJdd VS data/taxa
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_verif 
+--- Description : Vérification des données
+--- Variables :
+--- o libSchema = Nom du schema
+--- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
+--- o typVerif = type de vérification - valeur possibles : 'obligation', 'type', 'doublon', 'vocactrl' et 'all'(par défaut)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif(libSchema varchar, jdd varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -880,10 +997,17 @@ EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog"
 --- RETURN;
 END;$BODY$ LANGUAGE plpgsql;
 
-------------------------------------------
---- Vérifications Plus
-------------------------------------------
---- Améliorer en mettant les identifiants "mère"
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_verif_plus
+--- Description : Vérification des données
+--- Variables :
+--- o libSchema = Nom du schema
+--- o libTable = Nom de la table
+--- o libChamp = Nom du champ
+--- o typVerif = type de vérification - valeur possibles : 'obligation', 'type', 'doublon', 'vocactrl' et 'all'(par défaut)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif_plus(libSchema varchar, libTable varchar, libChamp varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -953,9 +1077,14 @@ END CASE;
 --- EXECUTE 'INSERT INTO "public".zz_log ("libSchema","libTable","libChamp","typLog","libLog","nbOccurence","date") VALUES ('''||out."libSchema"||''',''-'',''-'',''hub_verif'',''-'',''-'','''||out."date"||''');';
 RETURN;END;$BODY$ LANGUAGE plpgsql;
 
-------------------------------------------
---- Chainage des vérification
-------------------------------------------
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_verif_all
+--- Description : Chainage des vérification
+--- Variables :
+--- o libSchema = Nom du schema
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS varchar AS 
 $BODY$ BEGIN
 TRUNCATE public.verification;
@@ -965,10 +1094,13 @@ PERFORM hub_verif(libSchema,'taxa','all');
 RETURN 'Vérification réalisées (aller voir dans les tables zz_log)';END;
 $BODY$ LANGUAGE plpgsql;
 
-
-
 ---------------------------------------------------------------------------------------------------------
---- hub_log = facilite l'enregistrement dans le Log
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_log
+--- Description : ecrit les output dans le Log du schema et le log global
+--- Variables :
+--- o libSchema = Nom du schema
+---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log) RETURNS void AS 
 $BODY$ 
