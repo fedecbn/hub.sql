@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS "public"."zz_log" ("libSchema" character varying,"lib
 CREATE OR REPLACE FUNCTION hub_add(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar,champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
+DECLARE metasource varchar;
 DECLARE listJdd varchar;
 DECLARE typJdd varchar;
 DECLARE source varchar;
@@ -36,9 +37,10 @@ DECLARE jointure varchar;
 DECLARE flag varchar; 
 BEGIN
 --Variables
-CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := ''||jdd||'';
-END CASE;
+SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''||jdd||'';END CASE;
+
 CASE WHEN champRef = 'cdJddPerm' THEN typJdd = 'meta';flag := 1;
 WHEN champRef = 'cdObsPerm' THEN typJdd = 'data';flag := 1;
 WHEN champRef = 'cdEntPerm' THEN typJdd = 'taxa';flag := 1;
@@ -94,22 +96,24 @@ $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE flag integer;
 DECLARE prefixe varchar;
+DECLARE metasource varchar;
 DECLARE libTable varchar;
 DECLARE listJdd varchar;
 BEGIN
 --- Variables 
 CASE WHEN typPartie = 'temp' THEN flag :=1; prefixe = 'temp_'; WHEN typPartie = 'propre' THEN flag :=1; prefixe = ''; ELSE flag :=0; END CASE;
-CASE WHEN jdd = 'data' OR jdd = 'taxa' 	THEN EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := jdd; END CASE;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||libSchema||'"."'||prefixe||'metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''||jdd||'';END CASE;
 --- Output&Log
 out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_clear';out."nbOccurence" := '-'; SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Commandes
-CASE WHEN flag = 1 THEN
+CASE WHEN flag = 1 AND listJdd <> '''vide''' THEN
 	FOR libTable in EXECUTE 'SELECT table_name FROM information_schema.tables WHERE table_schema = '''||libSchema||''' AND table_name NOT LIKE ''temp_%'' AND table_name NOT LIKE ''zz_%'';'
 		LOOP EXECUTE 'DELETE FROM "'||libSchema||'"."'||prefixe||libTable||'" WHERE "cdJdd" IN ('||listJdd||');'; 
 		END LOOP;
 	---log---
 	out."libLog" = jdd||' effacé de la partie '||typPartie;
+WHEN listJdd = '''vide''' THEN out."libLog" = 'jdd vide '||jdd;
 ELSE out."libLog" = 'ERREUR : mauvais typPartie : '||typPartie;
 END CASE;
 --- Output&Log
@@ -219,6 +223,7 @@ END; $BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_del(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
+DECLARE metasource varchar;
 DECLARE typJdd varchar;
 DECLARE listJdd varchar;
 DECLARE source varchar;
@@ -229,9 +234,10 @@ DECLARE listeChamp1 varchar;
 DECLARE jointure varchar;
 BEGIN
 --Variable
-CASE WHEN Jdd = 'data' OR Jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := ''||jdd||'';
-END CASE;
+SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''||jdd||'';END CASE;
+
 CASE WHEN champRef = 'cdJddPerm' THEN typJdd = 'meta';flag := 1;
 WHEN champRef = 'cdObsPerm' THEN typJdd = 'data';flag := 1;
 WHEN champRef = 'cdEntPerm' THEN typJdd = 'taxa';flag := 1;
@@ -815,6 +821,7 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_update(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype; 
+DECLARE metasource varchar; 
 DECLARE listJdd varchar; 
 DECLARE typJdd varchar; 
 DECLARE source varchar; 
@@ -827,9 +834,10 @@ DECLARE wheres varchar;
 DECLARE jointure varchar;
 BEGIN
 --Variable
-CASE WHEN Jdd = 'data' OR Jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := ''||jdd||'';
-END CASE;
+SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''||jdd||'';END CASE;
+
 CASE WHEN champRef = 'cdJddPerm' THEN typJdd = 'meta';flag := 1;
 WHEN champRef = 'cdObsPerm' THEN typJdd = 'data';flag := 1;
 WHEN champRef = 'cdEntPerm' THEN typJdd = 'taxa';flag := 1;
