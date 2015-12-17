@@ -100,7 +100,7 @@ BEGIN
 --- Variables 
 CASE WHEN typPartie = 'temp' THEN flag :=1; prefixe = 'temp_'; WHEN typPartie = 'propre' THEN flag :=1; prefixe = ''; ELSE flag :=0; END CASE;
 CASE WHEN jdd = 'data' OR jdd = 'taxa' 	THEN EXECUTE 'SELECT string_agg(''''''''||"cdJdd"||'''''''','','') FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := jdd; 
+ELSE listJdd := jdd; END CASE;
 --- Output&Log
 out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_clear';out."nbOccurence" := '-'; SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Commandes
@@ -571,7 +571,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_pull(libSchema varchar,jdd varchar, mode integer = 1) RETURNS setof zz_log AS 
-$BODY$
 $BODY$ 
 DECLARE out zz_log%rowtype; 
 DECLARE flag integer; 
@@ -600,7 +599,7 @@ CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN m
 
 --- Commandes
 --- Remplacement total (NB : equivalent au push 'replace' mais dans l'autre sens)
-CASE flag = 1 THEN
+CASE WHEN flag = 1 THEN
 	SELECT * INTO out FROM hub_clear(libSchema, jdd, 'temp'); return next out;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP
 		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
@@ -1085,14 +1084,15 @@ RETURN;END;$BODY$ LANGUAGE plpgsql;
 --- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS varchar AS 
-$BODY$ BEGIN
+CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+BEGIN
 TRUNCATE public.verification;
-PERFORM hub_verif(libSchema,'meta','all');
-PERFORM hub_verif(libSchema,'data','all');
-PERFORM hub_verif(libSchema,'taxa','all');
-RETURN 'Vérification réalisées (aller voir dans les tables zz_log)';END;
-$BODY$ LANGUAGE plpgsql;
+SELECT * into out FROM hub_verif(libSchema,'meta','all');return next out;
+SELECT * into out FROM hub_verif(libSchema,'data','all');return next out;
+SELECT * into out FROM hub_verif(libSchema,'taxa','all');return next out;
+END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
