@@ -74,7 +74,7 @@ WHEN typAction1 = 'diff' THEN --- CAS utilisé pour analyser les différences
 	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
 	EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b LEFT JOIN '||destination||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND b."cdJdd" IN ('||listJdd||')' INTO compte; 
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		out."nbOccurence" := compte||' occurence(s)'; out."libLog" := 'Valeur supplémentaire : '||tableSource||' => '||tableDest; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+		out."nbOccurence" := compte||' occurence(s)'; out."libLog" := tableSource||' => '||tableDest; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	ELSE out."nbOccurence" := '-'; out."libLog" := 'Aucune différence'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	END CASE;
 ELSE out."libChamp" := '-'; out."libLog" := 'ERREUR : sur champ action = '||typAction1; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
@@ -476,6 +476,7 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_idPerm(libSchema varchar, nomDomaine varchar, jdd varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
+DECLARE flag varchar;
 DECLARE typJdd varchar;
 DECLARE listJdd varchar;
 DECLARE champMere varchar;
@@ -488,7 +489,7 @@ BEGIN
 CASE WHEN jdd = 'data' THEN 
 	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
 	typJdd := jdd; champMere = 'cdEntMere';	champRef = 'cdEntPerm';	tableRef = 'entite'; flag :=1;
-WHEN  jdd = 'taxa'
+WHEN  jdd = 'taxa' THEN
 	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
 	typJdd := jdd;	champMere = 'cdObsMere';	champRef = 'cdObsPerm';	tableRef = 'observation'; flag :=1;
 ELSE 
