@@ -477,6 +477,7 @@ CREATE OR REPLACE FUNCTION hub_idPerm(libSchema varchar, nomDomaine varchar, jdd
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE typJdd varchar;
+DECLARE listJdd varchar;
 DECLARE champMere varchar;
 DECLARE champRef varchar;
 DECLARE tableRef varchar;
@@ -484,22 +485,47 @@ DECLARE listTable varchar;
 DECLARE listPerm varchar;
 BEGIN
 --- Variables
-EXECUTE 'SELECT typJdd FROM temp_metadonnees WHERE cdJdd = '''||jdd||'''' INTO typJdd;
-CASE WHEN typJdd = 'meta' 	THEN champMere = 'cdJdd'; 	champRef = 'cdJddPerm';	tableRef = 'metadonnees'; 
-	WHEN typJdd = 'data' 	THEN champMere = 'cdObsMere';	champRef = 'cdObsPerm';	tableRef = 'observation'; 
-	WHEN typJdd = 'taxa' 	THEN champMere = 'cdEntMere';	champRef = 'cdEntPerm';	tableRef = 'entite'; 
-				ELSE champMere = ''; 		champRef = ''; 		tableRef = '';END CASE;
+CASE WHEN jdd = 'data' THEN 
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+	typJdd := jdd; champMere = 'cdEntMere';	champRef = 'cdEntPerm';	tableRef = 'entite'; flag :=1;
+WHEN  jdd = 'taxa'
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
+	typJdd := jdd;	champMere = 'cdObsMere';	champRef = 'cdObsPerm';	tableRef = 'observation'; flag :=1;
+ELSE 
+	listJdd := ''||jdd||'';
+	EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||jdd||''';' INTO typJdd;
+	CASE WHEN typJdd = 'taxa' THEN 
+		champMere = 'cdEntMere';	champRef = 'cdEntPerm';	tableRef = 'entite'; flag :=1;
+	WHEN typJdd = 'data' THEN 
+		champMere = 'cdObsMere';	champRef = 'cdObsPerm';	tableRef = 'observation';flag :=1;
+	ELSE flag :=0;
+	END CASE;
+END CASE;
+
 --- Output
-out."libSchema" := libSchema;out."libTable" := tableRef;out."libChamp" := champRef;out."typLog" := 'hub_idPerm';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";out."libLog" := 'Identifiant permanent produit';
+out."libSchema" := libSchema;out."libTable" := tableRef;out."libChamp" := champRef;out."typLog" := 'hub_idPerm';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";
 --- Commandes
-FOR listPerm IN EXECUTE 'SELECT DISTINCT "'||champMere||'" FROM "'||libSchema||'".temp_'||tableRef||' WHERE "cdJdd" = '''||cdjdd||''')' --- Production de l'idPermanent
-	LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||tableRef||'" SET ("'||champRef||'") = ('''||nomdomaine||'/'||champRef||'/''||(SELECT uuid_generate_v4())) WHERE "'||champMere||'" = '''||listPerm||''' AND "cdJdd" = '''||cdJdd||''';';
-	out."libTable" := null; PERFORM hub_log (libSchema, out);RETURN next out;
-	END LOOP;	
-FOR listTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE tbl_name <> '''||tableRef||''''  --- Peuplement du nouvel idPermanent dans les autres tables
-	LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||listTable||'" ot SET "'||champRef||'" = o."'||champRef||'" FROM "'||libSchema||'"."temp_'||tableRef||'" o WHERE o."cdJdd" = ot."cdJdd" AND o."'||champMere||'" = ot."'||champMere||'";';
-	out."libTable" := listTable; PERFORM hub_log (libSchema, out);RETURN next out;
-	END LOOP;
+CASE WHEN flag =1 THEN
+--- Metadonnees
+	FOR listPerm IN EXECUTE 'SELECT DISTINCT "cdJdd" FROM "'||libSchema||'"."temp_metadonnees" WHERE "cdJdd" IN ('||listJdd||');' --- Production de l'idPermanent
+		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_metadonnees" SET ("cdJddPerm") = ('''||nomdomaine||'/cdJddPerm/''||(SELECT uuid_generate_v4())) WHERE "cdJdd" = '''||listPerm||''' AND "cdJdd" IN ('||listJdd||') AND "cdJddPerm" IS NULL;';
+		out."libLog" := 'OK';out."libTable" := '-'; PERFORM hub_log (libSchema, out); RETURN next out;
+		END LOOP;	
+	FOR listTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE tbl_name <> ''metadonnees'''  --- Peuplement du nouvel idPermanent dans les autres tables
+		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||listTable||'" ot SET "cdJddPerm" = o."cdJddPerm" FROM "'||libSchema||'"."temp_metadonnees" o WHERE o."cdJdd" = ot."cdJdd" AND o."cdJdd" = ot."cdJdd" AND ot."cdJddPerm" IS NULL;';
+		out."libLog" := 'OK';out."libTable" := listTable; PERFORM hub_log (libSchema, out);RETURN next out;
+		END LOOP;
+--- Donnees
+	FOR listPerm IN EXECUTE 'SELECT DISTINCT "'||champMere||'" FROM "'||libSchema||'".temp_'||tableRef||' WHERE "cdJdd" IN ('||listJdd||');' --- Production de l'idPermanent
+		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||tableRef||'" SET ("'||champRef||'") = ('''||nomdomaine||'/'||champRef||'/''||(SELECT uuid_generate_v4())) WHERE "'||champMere||'" = '''||listPerm||''' AND "cdJdd" IN ('||listJdd||') AND "'||champRef||'" IS NULL;';
+		out."libLog" := 'Identifiant permanent produit';out."libTable" := '-'; PERFORM hub_log (libSchema, out); RETURN next out;
+		END LOOP;	
+	FOR listTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE tbl_name <> '''||tableRef||''''  --- Peuplement du nouvel idPermanent dans les autres tables
+		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||listTable||'" ot SET "'||champRef||'" = o."'||champRef||'" FROM "'||libSchema||'"."temp_'||tableRef||'" o WHERE o."cdJdd" = ot."cdJdd" AND o."'||champMere||'" = ot."'||champMere||' AND ot."'||champRef||'" IS NULL";';
+		out."libLog" := 'Identifiant permanent produit';out."libTable" := listTable; PERFORM hub_log (libSchema, out);RETURN next out;
+		END LOOP;
+ELSE out."libLog" := 'ERREUR : Mauvais JDD';out."libTable" := '-'; PERFORM hub_log (libSchema, out); RETURN next out;
+END CASE;
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
