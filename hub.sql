@@ -539,7 +539,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --- o path = chemin vers le dossier dans lequel on souhaite exporter les données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, files varchar = '') RETURNS setof zz_log AS 
 $BODY$
 DECLARE libTable varchar;
 DECLARE out zz_log%rowtype;
@@ -552,9 +552,9 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_meta;'
 		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out."libLog" := jdd||' importé depuis '||path;
-WHEN jdd = 'listTaxon' THEN 
+WHEN jdd = 'listTaxon' AND files <> '' THEN 
 	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon;TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
-	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||'std_listTaxon.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||files||''' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	FOR i in EXECUTE 'select "cdRef" from "'||libSchema||'".zz_log_liste_taxon' 
 		LOOP  
 		EXECUTE
@@ -572,6 +572,7 @@ WHEN jdd = 'listTaxon' THEN
 		end loop;
 	EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set "nomValideDemande" = "nomValide" from "'||libSchema||'".zz_log_liste_taxon where zz_log_liste_taxon_et_infra."cdRefDemande"= zz_log_liste_taxon."cdRef" ' ;
 	out."libLog" := jdd||' importé depuis '||path;
+WHEN jdd = 'listTaxon' AND files = '' THEN out."libLog" := 'Paramètre "files" non spécifié';
 ELSE out."libLog" := 'Problème identifié dans le jdd (ni data, ni taxa,ni meta)'; END CASE;
 
 --- Output&Log
