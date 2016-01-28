@@ -554,7 +554,7 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	out."libLog" := jdd||' importé depuis '||path;
 WHEN jdd = 'listTaxon' THEN 
 	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon;TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
-	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||'std_listTaxon.csv'' HEADER CSV DELIMITER ''	'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||'std_listTaxon.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	FOR i in EXECUTE 'select "cdRef" from "'||libSchema||'".zz_log_liste_taxon' 
 		LOOP  
 		EXECUTE
