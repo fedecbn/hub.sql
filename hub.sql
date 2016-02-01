@@ -81,6 +81,34 @@ ELSE out."libChamp" := '-'; out."libLog" := 'ERREUR : sur champ action = '||typA
 END CASE;	
 END;$BODY$ LANGUAGE plpgsql;
 
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_bilan
+--- Description : Met à jour le bilan sur les données disponibles dans un schema
+--- Variables :
+--- o libSchema = Nom du schema
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_bilan(libSchema varchar) RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+BEGIN
+--- Output&Log
+out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_bilan';out."nbOccurence" := '-'; SELECT CURRENT_TIMESTAMP INTO out."date";
+--- Commandes
+EXECUTE 'UPDATE public.bilan SET 
+	data_nb_releve = (SELECT count(*) FROM "'||libSchema||'".releve),
+	data_nb_observation = (SELECT count(*) FROM "'||libSchema||'".observation),
+	data_nb_taxon = (SELECT count(DISTINCT "cdRef") FROM "'||libSchema||'".observation),
+	taxa_nb_taxon = (SELECT count(*) FROM "'||libSchema||'".entite) 
+	WHERE lib_cbn = '''||libSchema||'''
+	';
+--- Output&Log
+out."libLog" = 'bilan réalisé';
+PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END; $BODY$ LANGUAGE plpgsql;
+
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_clear 
