@@ -580,7 +580,6 @@ CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varch
 $BODY$
 DECLARE libTable varchar;
 DECLARE out zz_log%rowtype;
-DECLARE i varchar;
 BEGIN
 --- Commande
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
@@ -592,22 +591,6 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 WHEN jdd = 'listTaxon' AND files <> '' THEN 
 	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon;TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
 	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||files||''' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	FOR i in EXECUTE 'select "cdRef" from "'||libSchema||'".zz_log_liste_taxon' 
-		LOOP  
-		EXECUTE
-			'INSERT INTO "'||libSchema||'".zz_log_liste_taxon_et_infra ("cdRefDemande", "nomValideDemande", "cdRefCite", "nomCompletCite","cdTaxsupCite","rangCite")
-			select '''||i||''' as cdRefDemande, '''' as nomValideDemande, foo.* from 
-			(WITH RECURSIVE hierarchie(cd_nom,nom_complet, cd_taxsup, rang) AS (
-			SELECT cd_nom, nom_complet, cd_taxsup, rang
-			FROM ref.taxref_v5 t1
-			WHERE t1.cd_nom = '''||i||'''
-			UNION
-			SELECT t2.cd_nom, t2.nom_complet, t2.cd_taxsup, t2.rang
-			FROM ref.taxref_v5 t2
-			JOIN hierarchie h ON t2.cd_taxsup = h.cd_nom
-			) SELECT * FROM hierarchie) as foo';
-		end loop;
-	EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set "nomValideDemande" = "nomValide" from "'||libSchema||'".zz_log_liste_taxon where zz_log_liste_taxon_et_infra."cdRefDemande"= zz_log_liste_taxon."cdRef" ' ;
 	out."libLog" := jdd||' importé depuis '||path;
 WHEN jdd = 'listTaxon' AND files = '' THEN out."libLog" := 'Paramètre "files" non spécifié';
 ELSE out."libLog" := 'Problème identifié dans le jdd (ni data, ni taxa,ni meta)'; END CASE;
@@ -615,6 +598,46 @@ ELSE out."libLog" := 'Problème identifié dans le jdd (ni data, ni taxa,ni meta
 --- Output&Log
 out."libSchema" := libSchema;out."libChamp" := '-';out."libTable" := '-';out."typLog" := 'hub_import';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$  LANGUAGE plpgsql;
+
+
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_txInfra 
+--- Description : Générer une table avec les taxon infra depuis la table zz_log_liste_taxon
+--- Variables :
+--- o libSchema = Nom du schema
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_txInfra(libSchema varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE i varchar;
+BEGIN
+--- Commande
+FOR i in EXECUTE 'select "cdRef" from "'||libSchema||'".zz_log_liste_taxon' 
+	LOOP  
+	EXECUTE
+		'INSERT INTO "'||libSchema||'".zz_log_liste_taxon_et_infra ("cdRefDemande", "nomValideDemande", "cdRefCite", "nomCompletCite","cdTaxsupCite","rangCite")
+		select '''||i||''' as cdRefDemande, '''' as nomValideDemande, foo.* from 
+		(WITH RECURSIVE hierarchie(cd_nom,nom_complet, cd_taxsup, rang) AS (
+		SELECT cd_nom, nom_complet, cd_taxsup, rang
+		FROM ref.taxref_v5 t1
+		WHERE t1.cd_nom = '''||i||'''
+		UNION
+		SELECT t2.cd_nom, t2.nom_complet, t2.cd_taxsup, t2.rang
+		FROM ref.taxref_v5 t2
+		JOIN hierarchie h ON t2.cd_taxsup = h.cd_nom
+		) SELECT * FROM hierarchie) as foo';
+	end loop;
+EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set "nomValideDemande" = "nomValide" from "'||libSchema||'".zz_log_liste_taxon where zz_log_liste_taxon_et_infra."cdRefDemande"= zz_log_liste_taxon."cdRef" ' ;
+out."libLog" := 'Liste de sous taxons générée';
+
+--- Output&Log
+out."libSchema" := libSchema;out."libChamp" := '-';out."libTable" := 'zz_log_liste_taxon_et_infra';out."typLog" := 'hub_txInfra';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";PERFORM hub_log (libSchema, out);RETURN next out;
+END; $BODY$  LANGUAGE plpgsql;
+
+
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
