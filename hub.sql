@@ -417,17 +417,15 @@ DECLARE typJdd varchar;
 DECLARE listJdd varchar; 
 BEGIN
 --- Variables Jdd
-CASE WHEN Jdd = 'data' OR Jdd = 'taxa' THEN 	
-	typJdd := Jdd;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 	
+	typJdd := jdd;
 	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||"cdJdd"||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||"cdJdd"||'''''''','','') END FROM "'||libSchema||'"."temp_metadonnees" WHERE "typJdd" = '''||jdd||''';' INTO listJdd;
-WHEN Jdd = 'listTaxon' THEN 
-	format = 'Taxon';
+WHEN jdd = 'listtaxon' THEN 
 	libTable = 'zz_log_liste_taxon';
-WHEN Jdd = 'listTaxonInfra' THEN 
-	format = 'Taxon';
+WHEN jdd = 'listtaxoninfra' THEN 
 	libTable = 'zz_log_liste_taxon_et_infra';
 ELSE
-	EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||Jdd||''';' INTO typJdd; 
+	EXECUTE 'SELECT "typJdd" FROM "'||libSchema||'".temp_metadonnees WHERE "cdJdd" = '''||jdd||''';' INTO typJdd; 
 	listJdd := ''||jdd||'';
 END CASE;
 --- Output&Log
@@ -438,10 +436,10 @@ CASE WHEN format = 'fcbn' THEN
 		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE "cdJdd" IN ('||listJdd||')) TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_meta'
 		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE "cdJdd" IN ('||listJdd||')) TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	out."libLog" :=  Jdd||'exporté au format '||format;
+	out."libLog" :=  jdd||'exporté au format '||format;
 WHEN format = 'sinp' THEN
 	out."libLog" :=  'format SINP à implémenter';
-WHEN format = 'Taxon' THEN
+WHEN format = 'taxon' THEN
 	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	out."libLog" :=  libTable||' exporté ';
 ELSE out."libLog" :=  'format non implémenté : '||format;
