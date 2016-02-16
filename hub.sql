@@ -160,77 +160,46 @@ CREATE OR REPLACE FUNCTION hub_clone(libSchema varchar) RETURNS setof zz_log AS
 $BODY$ 
 DECLARE out zz_log%rowtype; 
 DECLARE flag integer; 
+DECLARE typjdd varchar; 
+DECLARE cd_table varchar; 
+DECLARE list_champ varchar; 
+DECLARE list_champ_sans_format varchar; 
+DECLARE list_contraint varchar; 
+DECLARE schema_lower varchar; 
 BEGIN
 --- Variable
-EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = '''||libSchema||''';' INTO flag;
+schema_lower = lower(libSchema);
+EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = '''||schema_lower||''';' INTO flag;
 --- Commande
 CASE WHEN flag = 1 THEN
-	out."libLog" := 'Schema '||libSchema||' existe déjà';
-ELSE EXECUTE '
-	CREATE SCHEMA "'||libSchema||'";
+	out."libLog" := 'Schema '||schema_lower||' existe déjà';
+ELSE 
+	EXECUTE 'CREATE SCHEMA "'||schema_lower||'";';
 
 	--- META : PARTIE PROPRE 
-	CREATE TABLE "'||libSchema||'".metadonnees 		("cdJddPerm" character varying, "cdJdd" character varying NOT NULL,"typJdd" character varying NOT NULL,"libJdd" character varying NOT NULL,"descJdd" character varying,"rmq" character varying, 
-									CONSTRAINT metadonnees_pkey PRIMARY KEY ("cdJddPerm"));
-	CREATE TABLE "'||libSchema||'".metadonnees_territoire 	("cdJddPerm" character varying,"cdJdd" character varying NOT NULL,"cdGeo" character varying,"typGeo" character varying,"cdRefGeo" character varying NOT NULL,"versionRefGeo" character varying NOT NULL,"rmq" character varying, 
-									CONSTRAINT metadonnees_territoire_pkey PRIMARY KEY ("cdJddPerm","typGeo","cdGeo"),CONSTRAINT metadonnees_territoire_fk FOREIGN KEY ("cdJddPerm") REFERENCES "'||libSchema||'".metadonnees ("cdJddPerm"));
-	CREATE TABLE "'||libSchema||'".metadonnees_acteur 	("cdJddPerm" character varying,"cdJdd" character varying NOT NULL,"typActeur" character varying,"nomActeur" character varying,"libOrgm" character varying,"mailActeur" character varying,"cdActeur" character varying,"cdOrgm" character varying,	"rmq" character varying,
-									CONSTRAINT metadonnees_acteur_pkey PRIMARY KEY ("cdJddPerm","typActeur","nomActeur","libOrgm"),CONSTRAINT metadonnees_acteur_fk FOREIGN KEY ("cdJddPerm") REFERENCES "'||libSchema||'".metadonnees ("cdJddPerm"));
-	CREATE TABLE "'||libSchema||'".metadonnees_date 		("cdJddPerm" character varying,"cdJdd" character varying NOT NULL,"typAction" character varying,"dateDebut" character varying,"dateFin" character varying,"natureDate" character varying NOT NULL,"rmq" character varying,
-									CONSTRAINT metadonnees_date_pkey PRIMARY KEY ("cdJddPerm","typAction","dateDebut","dateFin"),CONSTRAINT metadonnees_date_fk FOREIGN KEY ("cdJddPerm") REFERENCES "'||libSchema||'".metadonnees ("cdJddPerm"));
-	--- META : PARTIE TEMPORAIRE
-	CREATE TABLE "'||libSchema||'".temp_metadonnees 			("cdJddPerm" character varying,"cdJdd" character varying,"typJdd" character varying,"libJdd" character varying,"descJdd" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_metadonnees_territoire 	("cdJddPerm" character varying,"cdJdd" character varying,"cdGeo" character varying,"typGeo" character varying,"cdRefGeo" character varying,"versionRefGeo" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_metadonnees_acteur 		("cdJddPerm" character varying,"cdJdd" character varying,"typActeur" character varying,"nomActeur" character varying,"libOrgm" character varying,"mailActeur" character varying,"cdActeur" character varying,"cdOrgm" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_metadonnees_date 		("cdJddPerm" character varying,"cdJdd" character varying,"typAction" character varying,"dateDebut" character varying,"dateFin" character varying,"natureDate" character varying,"rmq" character varying);
-
-	--- DATA : PARTIE PROPRE
-	CREATE TABLE "'||libSchema||'".releve 			("cdJdd" character varying  NOT NULL,"cdReleve" character varying NOT NULL,"cdRelevePerm" character varying,"typReleve" character varying NOT NULL,"cdDisp" character varying,"typDisp" character varying NOT NULL,"libDisp" character varying,"descDisp" character varying,"cdHab" character varying,"cdRefHab" character varying,"versionRefHab" character varying,"cdIDCNP" character varying,"rmq" character varying,
-									CONSTRAINT releve_pkey PRIMARY KEY ("cdRelevePerm"));
-	CREATE TABLE "'||libSchema||'".observation 		("cdJddPerm" character varying NOT NULL,"cdJdd" character varying NOT NULL,"cdRelevePerm" character varying,"cdObsPerm" character varying,"typEnt" character varying NOT NULL,"cdObsMere" character varying NOT NULL,"cdEntMere" character varying,"nomEntMere" character varying,"cdRef" character varying NOT NULL,"cdNom" character varying,"cdRefTaxo" character varying NOT NULL,"versionRefTaxo" character varying NOT NULL,"nomEntRef" character varying NOT NULL,"cdObsOrig" character varying,"cdEntOrig" character varying,"nomEntOrig" character varying,"cdJddOrig" character varying,"libJddOrig" character varying,"typSource" character varying NOT NULL,"cdBiblio" character varying,"libBiblio" character varying,"urlBiblio" character varying,"cdHerbier" character varying,"libHerbier" character varying,"cdValidite" integer NOT NULL,"cdSensi" integer NOT NULL,"libRefSensi" character varying,"versionRefSensi" character varying,"proprieteObs" character varying NOT NULL,"statutPop" integer NOT NULL,"typDenombt" character varying,"denombtMin" integer,"denombtMax" integer,"objetDenombt" character varying,"rmq" character varying,
-									CONSTRAINT observation_pkey PRIMARY KEY ("cdObsPerm"),CONSTRAINT observation_fk FOREIGN KEY ("cdJddPerm") REFERENCES "'||libSchema ||'".metadonnees ("cdJddPerm"),CONSTRAINT observation_releve_fk FOREIGN KEY ("cdRelevePerm") REFERENCES "'||libSchema||'".releve ("cdRelevePerm"));
-	CREATE TABLE "'||libSchema||'".observation_territoire 	("cdJdd" character varying NOT NULL,"cdObsPerm" character varying,"cdObsMere" character varying NOT NULL,"typGeo" character varying,"cdRefGeo" character varying NOT NULL,"versionRefGeo" character varying NOT NULL,"cdGeo" character varying,"libGeo" character varying,"confianceGeo" character varying NOT NULL,"moyenGeo" character varying NOT NULL,"natureGeo" character varying NOT NULL,"origineGeo" character varying NOT NULL,"precisionGeo" float,"rmq" character varying,
-									CONSTRAINT observation_territoire_pkey PRIMARY KEY ("cdObsPerm","typGeo","cdGeo"),CONSTRAINT observation_territoire_fk FOREIGN KEY ("cdObsPerm") REFERENCES "'||libSchema ||'".observation ("cdObsPerm"));
-	CREATE TABLE "'||libSchema||'".observation_acteur 	("cdJdd" character varying NOT NULL,"cdObsPerm" character varying,"cdObsMere" character varying NOT NULL,"typActeur" character varying,"nomActeur" character varying,"libOrgm" character varying NOT NULL,"mailActeur" character varying,"cdActeur" character varying,"cdOrgm" character varying, "rmq" character varying,
-									CONSTRAINT observation_acteur_pkey PRIMARY KEY ("cdObsPerm","typActeur","nomActeur","libOrgm"),CONSTRAINT observation_territoire_fk FOREIGN KEY ("cdObsPerm") REFERENCES "'||libSchema ||'".observation ("cdObsPerm"));
-	CREATE TABLE "'||libSchema||'".observation_date 		("cdJdd" character varying NOT NULL,"cdObsPerm" character varying,"cdObsMere" character varying NOT NULL,"typAction" character varying,"dateDebut" character varying,"dateFin" character varying,"natureDate" character varying NOT NULL,"rmq" character varying,
-									CONSTRAINT observation_date_pkey PRIMARY KEY ("cdObsPerm","typAction","dateDebut","dateFin"),CONSTRAINT observation_territoire_fk FOREIGN KEY ("cdObsPerm") REFERENCES "'||libSchema ||'".observation ("cdObsPerm"));
-	--- DATA : PARTIE TEMPORAIRE
-	CREATE TABLE "'||libSchema||'".temp_releve			("cdJdd" character varying,"cdReleve" character varying,"cdRelevePerm" character varying,"typReleve" character varying,"cdDisp" character varying,"typDisp" character varying,"libDisp" character varying,"descDisp" character varying,"cdHab" character varying,"cdRefHab" character varying,"versionRefHab" character varying,"cdIDCNP" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_observation 			("cdJddPerm" character varying,"cdJdd" character varying,"cdRelevePerm" character varying,"cdObsPerm" character varying,"typEnt" character varying,"cdObsMere" character varying,"cdEntMere" character varying,"nomEntMere" character varying,"cdRef" character varying,"cdNom" character varying,"cdRefTaxo" character varying,"versionRefTaxo" character varying,"nomEntRef" character varying,"cdObsOrig" character varying,"cdEntOrig" character varying,"nomEntOrig" character varying,"cdJddOrig" character varying,"libJddOrig" character varying,"typSource" character varying,"cdBiblio" character varying,"libBiblio" character varying,"urlBiblio" character varying,"cdHerbier" character varying,"libHerbier" character varying,"cdValidite" character varying,"cdSensi" character varying,"libRefSensi" character varying,"versionRefSensi" character varying,"proprieteObs" character varying,"statutPop" character varying,"typDenombt" character varying,"denombtMin" character varying,"denombtMax" character varying,"objetDenombt" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_observation_territoire 	("cdJdd" character varying,"cdObsPerm" character varying,"cdObsMere" character varying,"typGeo" character varying,"cdRefGeo" character varying,"versionRefGeo" character varying,"cdGeo" character varying,"libGeo" character varying,"confianceGeo" character varying,"moyenGeo" character varying,"natureGeo" character varying,"origineGeo" character varying,"precisionGeo" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_observation_acteur 		("cdJdd" character varying,"cdObsPerm" character varying,"cdObsMere" character varying,"typActeur" character varying,"nomActeur" character varying,"libOrgm" character varying,"mailActeur" character varying,"cdActeur" character varying,"cdOrgm" character varying,	"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_observation_date 		("cdJdd" character varying,"cdObsPerm" character varying,"cdObsMere" character varying,"typAction" character varying,"dateDebut" character varying,"dateFin" character varying,"natureDate" character varying,"rmq" character varying);
-
-	--- TAXA : PARTIE PROPRE
-	CREATE TABLE "'||libSchema||'".entite 			("cdJddPerm" character varying NOT NULL,"cdJdd" character varying NOT NULL,"typEnt" character varying NOT NULL,"cdEntMere" character varying NOT NULL,"cdEntPerm" character varying,"nomEntMere" character varying NOT NULL,"cdSup" character varying,"cdRang" character varying,"famille" character varying,"ordre" character varying,"classe" character varying,"phylum" character varying,"regne" character varying,"rmq" character varying,
-									CONSTRAINT entite_pkey PRIMARY KEY ("cdEntPerm"),CONSTRAINT entite_fk FOREIGN KEY ("cdJddPerm") REFERENCES "'||libSchema||'".metadonnees ("cdJddPerm"));
-	CREATE TABLE "'||libSchema||'".entite_statut 		("cdJdd" character varying NOT NULL,"cdEntPerm" character varying,"cdEntMere" character varying NOT NULL,"typStatut" character varying,"cdStatut" character varying,"critereStatut" character varying,"methodeStatut" character varying,"anneeStatut" date,"valeurStatut" float,"metriqueStatut" character varying,"typGeo" character varying,"cdGeo" character varying,"cdRefGeo" character varying NOT NULL,"versionRefGeo" character varying NOT NULL,"libGeo" character varying,"rmq" character varying,
-									CONSTRAINT entite_statut_pkey PRIMARY KEY ("cdEntPerm","typStatut","typGeo","cdGeo"),CONSTRAINT entite_statut_fk FOREIGN KEY ("cdEntPerm") REFERENCES "'||libSchema||'".entite ("cdEntPerm"));
-	CREATE TABLE "'||libSchema||'".entite_referentiel 	("cdJdd" character varying NOT NULL,"cdEntPerm" character varying,"cdEntMere" character varying NOT NULL,"cdNom" character varying,"cdRef" character varying NOT NULL,"nomEntRef" character varying NOT NULL,"cdRefTaxo" character varying,"versionRefTaxo" character varying,"rmq" character varying,
-									CONSTRAINT entite_referentiel_pkey PRIMARY KEY ("cdEntPerm","cdRefTaxo","versionRefTaxo"),CONSTRAINT entite_referentiel_fk FOREIGN KEY ("cdEntPerm") REFERENCES "'||libSchema||'".entite ("cdEntPerm"));
-	CREATE TABLE "'||libSchema||'".entite_verna 		("cdJdd" character varying NOT NULL,"cdEntPerm" character varying,"cdEntMere" character varying NOT NULL,"nomEntVerna" character varying,"rmq" character varying,
-									CONSTRAINT entite_verna_pkey PRIMARY KEY ("cdEntPerm","nomEntVerna"),CONSTRAINT entite_verna_fk FOREIGN KEY ("cdEntPerm") REFERENCES "'||libSchema||'".entite ("cdEntPerm"));
-	CREATE TABLE "'||libSchema||'".entite_biblio 		("cdJdd" character varying NOT NULL,"cdEntPerm" character varying,"cdEntMere" character varying NOT NULL,"typBiblio" character varying,"cdBiblio" character varying,"libBiblio" character varying,"urlBiblio" character varying,"rmq" character varying,
-									CONSTRAINT entite_biblio_pkey PRIMARY KEY ("cdEntPerm","typBiblio","cdBiblio"),CONSTRAINT entite_biblio_fk FOREIGN KEY ("cdEntPerm") REFERENCES "'||libSchema||'".entite ("cdEntPerm"));
-	--- TAXA : PARTIE TEMPORAIRE
-	CREATE TABLE "'||libSchema||'".temp_entite 			("cdJddPerm" character varying, "cdJdd" character varying,"typEnt" character varying,"cdEntMere" character varying,"cdEntPerm" character varying, "nomEntMere" character varying,"cdSup" character varying,"cdRang" character varying,"famille" character varying,"ordre" character varying,"classe" character varying,"phylum" character varying,"regne" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_entite_statut 		("cdJdd" character varying,"cdEntPerm" character varying,"cdEntMere" character varying,"typStatut" character varying,"cdStatut" character varying,"critereStatut" character varying,"methodeStatut" character varying,"anneeStatut" character varying,"valeurStatut" character varying,"metriqueStatut" character varying,"typGeo" character varying,"cdGeo" character varying,"cdRefGeo" character varying,"versionRefGeo" character varying,"libGeo" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_entite_referentiel 		("cdJdd" character varying,"cdEntPerm" character varying,"cdEntMere" character varying,"cdNom" character varying,"cdRef" character varying,"nomEntRef" character varying,"cdRefTaxo" character varying,"versionRefTaxo" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_entite_verna 		("cdJdd" character varying,"cdEntPerm" character varying,"cdEntMere" character varying,"nomEntVerna" character varying,"rmq" character varying);
-	CREATE TABLE "'||libSchema||'".temp_entite_biblio 		("cdJdd" character varying,"cdEntPerm" character varying,"cdEntMere" character varying,"typBiblio" character varying,"cdBiblio" character varying,"libBiblio" character varying,"urlBiblio" character varying,"rmq" character varying);
-
+	FOR typjdd IN SELECT typ_jdd FROM ref.formats GROUP BY typ_jdd
+	LOOP
+		FOR cd_table IN EXECUTE 'SELECT cd_table FROM ref.formats WHERE typ_jdd = '''||typjdd||''' GROUP BY cd_table'
+		LOOP
+			EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.formats WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ;
+			EXECUTE 'SELECT string_agg(one.cd_champ||'' character varying'','','') FROM (SELECT cd_champ, format FROM ref.formats WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ_sans_format;
+			EXECUTE 'SELECT ''CONSTRAINT ''||cd_table||''_pkey PRIMARY KEY (''||string_agg(cd_champ,'','')||'')'' FROM ref.formats WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' AND unicite = ''Oui'' GROUP BY cd_table' INTO list_contraint ;
+			EXECUTE 'CREATE TABLE '||schema_lower||'.temp_'||cd_table||' ('||list_champ_sans_format||');';
+			EXECUTE 'CREATE TABLE '||schema_lower||'.'||cd_table||' ('||list_champ||','||list_contraint||');';
+		END LOOP;
+	END LOOP;
 	--- LISTE TAXON
-	CREATE TABLE "'||libSchema||'".zz_log_liste_taxon  ("cdRef" character varying,"nomValide" character varying);
-	CREATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra  ("cdRefDemande" character varying,"nomValideDemande" character varying, "cdRefCite" character varying, "nomCompletCite" character varying, "rangCite" character varying, "cdTaxsupCite" character varying);
+	EXECUTE '
+	CREATE TABLE "'||schema_lower||'".zz_log_liste_taxon  ("cdRef" character varying,"nomValide" character varying);
+	CREATE TABLE "'||schema_lower||'".zz_log_liste_taxon_et_infra  ("cdRefDemande" character varying,"nomValideDemande" character varying, "cdRefCite" character varying, "nomCompletCite" character varying, "rangCite" character varying, "cdTaxsupCite" character varying);
 
 	--- LOG
-	CREATE TABLE "'||libSchema||'".zz_log  ("libSchema" character varying,"libTable" character varying,"libChamp" character varying,"typLog" character varying,"libLog" character varying,"nbOccurence" character varying,"date" date);
+	CREATE TABLE "'||schema_lower||'".zz_log  ("libSchema" character varying,"libTable" character varying,"libChamp" character varying,"typLog" character varying,"libLog" character varying,"nbOccurence" character varying,"date" date);
 	';
-	out."libLog" := 'Schema '||libSchema||' créé';
+	out."libLog" := 'Schema '||schema_lower||' créé';
 END CASE;
 --- Output&Log
-out."libSchema" := libSchema;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_clone';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";PERFORM hub_log (libSchema, out);RETURN NEXT out;
+out."libSchema" := schema_lower;out."libTable" := '-';out."libChamp" := '-';out."typLog" := 'hub_clone';out."nbOccurence" := 1; SELECT CURRENT_TIMESTAMP INTO out."date";PERFORM hub_log (schema_lower, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
