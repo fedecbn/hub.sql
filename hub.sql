@@ -185,13 +185,13 @@ ELSE
 	EXECUTE 'CREATE SCHEMA "'||schema_lower||'";';
 
 	--- META : PARTIE PROPRE 
-	FOR typjdd IN SELECT typ_jdd FROM ref.formats GROUP BY typ_jdd
+	FOR typjdd IN SELECT typ_jdd FROM ref.fsd GROUP BY typ_jdd
 	LOOP
-		FOR cd_table IN EXECUTE 'SELECT cd_table FROM ref.formats WHERE typ_jdd = '''||typjdd||''' GROUP BY cd_table'
+		FOR cd_table IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' GROUP BY cd_table'
 		LOOP
-			EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.formats WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ;
-			EXECUTE 'SELECT string_agg(one.cd_champ||'' character varying'','','') FROM (SELECT cd_champ, format FROM ref.formats WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ_sans_format;
-			EXECUTE 'SELECT ''CONSTRAINT ''||cd_table||''_pkey PRIMARY KEY (''||string_agg(cd_champ,'','')||'')'' FROM ref.formats WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' AND unicite = ''Oui'' GROUP BY cd_table' INTO list_contraint ;
+			EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ;
+			EXECUTE 'SELECT string_agg(one.cd_champ||'' character varying'','','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ_sans_format;
+			EXECUTE 'SELECT ''CONSTRAINT ''||cd_table||''_pkey PRIMARY KEY (''||string_agg(cd_champ,'','')||'')'' FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' AND unicite = ''Oui'' GROUP BY cd_table' INTO list_contraint ;
 			EXECUTE 'CREATE TABLE '||schema_lower||'.temp_'||cd_table||' ('||list_champ_sans_format||');';
 			EXECUTE 'CREATE TABLE '||schema_lower||'.'||cd_table||' ('||list_champ||','||list_contraint||');';
 		END LOOP;
@@ -371,9 +371,8 @@ CASE flag WHEN 1 THEN
 	out.lib_log := 'Schema '||libSchema||' supprimé';
 ELSE out.lib_log := 'Schema '||libSchema||' inexistant pas dans le Hub';
 END CASE;
-RETURN next out;
 --- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN NEXT out;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -628,9 +627,9 @@ CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN
-CREATE TABLE IF NOT EXISTS "public".zz_log  (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log date);
+--- CREATE TABLE IF NOT EXISTS public.zz_log  (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log date);
+SELECT * INTO out FROM hub_ref('create',path);PERFORM hub_log ('public', out);RETURN NEXT out;
 SELECT * INTO out FROM hub_clone(libSchema);PERFORM hub_log (libSchema, out);RETURN NEXT out;
-SELECT * INTO out FROM hub_ref('create',path);PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -809,7 +808,7 @@ CASE WHEN typAction4 = 'drop' THEN	--- Suppression
 WHEN typAction4 = 'delete' THEN	--- Suppression
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name = ''ref''' INTO flag1;
 	CASE WHEN flag1 = 1 THEN
-		FOR libTable IN EXECUTE 'SELECT nom_ref FROM public.ref_meta GROUP BY nom_ref'
+		FOR libTable IN EXECUTE 'SELECT nom_ref FROM public.ref_meta GROUP BY nom_ref ORDER BY nom_ref'
 		LOOP EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
 		CASE WHEN flag2 = 1 THEN 
 			EXECUTE 'DROP TABLE ref."'||libTable||'" CASCADE';  out.lib_log := 'Table '||libTable||' supprimée';RETURN next out;
@@ -821,7 +820,7 @@ WHEN typAction4 = 'create' THEN	--- Creation
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
 	CASE WHEN flag1 = 1 THEN out.lib_log := 'Schema ref déjà créés';RETURN next out;ELSE CREATE SCHEMA "ref"; out.lib_log := 'Schéma ref créés';RETURN next out;END CASE;
 	--- Tables
-	FOR libTable IN EXECUTE 'SELECT nom_ref FROM public.ref_meta GROUP BY nom_ref'
+	FOR libTable IN EXECUTE 'SELECT nom_ref FROM public.ref_meta GROUP BY nom_ref  ORDER BY nom_ref'
 		LOOP EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
 		CASE WHEN flag2 = 1 THEN 
 			out.lib_log := libTable||' a déjà été créée' ;RETURN next out;
@@ -1157,5 +1156,5 @@ CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log) RETURNS void
 $BODY$ 
 BEGIN
 EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''');';
-EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''');';
+CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''');'; ELSE PERFORM 1; END CASE;
 END;$BODY$ LANGUAGE plpgsql;
