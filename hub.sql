@@ -19,14 +19,6 @@ CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_add 
 --- Description : Ajout de données (fonction utilisée par une autre fonction)
---- Variables :
---- o schemaSource = Nom du schema source
---- o schemaDest = Nom du schema de destination
---- o tableSource  = Nom de la table source
---- o tableDest  = Nom de la table de destination
---- o champRef = nom du champ de référence utilisé pour tester la jointure entre la source et la destination
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o typAction1 = type d'action à réaliser - valeur possibles : 'push_total', 'push_diff' et 'diff'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Attention listJdd null sur jdd erroné
@@ -94,8 +86,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_bilan
 --- Description : Met à jour le bilan sur les données disponibles dans un schema
---- Variables :
---- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_bilan(libSchema varchar) RETURNS setof zz_log  AS 
@@ -121,10 +111,6 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_clear 
 --- Description : Nettoyage des tables (partie temporaires ou propre)
---- Variables :
---- o libSchema = Nom du schema
---- o jdd = Jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o typPartie = type de la partie à nettoyer - valeur possibles : 'propre', 'temp' (par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_clear(libSchema varchar, jdd varchar, typPartie varchar = 'temp') RETURNS setof zz_log  AS 
@@ -160,8 +146,6 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_clone 
 --- Description : Création d'un hub complet
---- Variables :
---- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_clone(libSchema varchar) RETURNS setof zz_log AS 
@@ -215,18 +199,10 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_del 
 --- Description : Suppression de données (fonction utilisée par une autre fonction)
---- Variables :
---- o schemaSource = Nom du schema source
---- o schemaDest = Nom du schema de destination
---- o tableSource  = Nom de la table source
---- o tableDest  = Nom de la table de destination
---- o champRef = nom du champ de référence utilisé pour tester la jointure entre la source et la destination
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o action = type d'action à réaliser - valeur possibles : 'push_total', 'push_diff' et 'diff'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-
-CREATE OR REPLACE FUNCTION hub_del(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, action varchar = 'diff') RETURNS setof zz_log  AS 
+--- DROP FUNCTION hub_del(varchar,varchar, varchar, varchar, varchar, varchar, varchar)
+CREATE OR REPLACE FUNCTION hub_del(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, typAction5 varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
 DECLARE metasource varchar;
@@ -261,13 +237,13 @@ EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b JOIN '||d
 	
 CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
 	out.nb_occurence := compte||' occurence(s)'; ---log
-	CASE WHEN action = 'push_diff' THEN
+	CASE WHEN typAction5 = 'push_diff' THEN
 		EXECUTE 'SELECT string_agg(''''||'||champRef||'||'''','','') FROM '||source INTO listeChamp1;
 		EXECUTE 'DELETE FROM '||destination||' WHERE "'||champRef||'" IN ('||listeChamp1||')';
 		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts supprimés'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
-	WHEN action = 'diff' THEN
+	WHEN typAction5 = 'diff' THEN
 		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts à supprimer'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
-	ELSE out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'ERREUR : sur champ action = '||action; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+	ELSE out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'ERREUR : sur champ action = '||typAction5; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	END CASE;
 ELSE out.lib_log := 'Aucune différence';out.nb_occurence := '-'; PERFORM hub_log (schemaSource, out); RETURN NEXT out;
 END CASE;	
@@ -277,11 +253,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_diff 
 --- Description : Analyse des différences entre une source et une cible
---- Variables :
---- o libSchema = Nom du schema à analyser
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o typAction2 = type d'action à réaliser - valeur possibles : 'del' et 'add'(par défaut)
---- o mode = mode d'utilisation - valeur possibles : '2' = inter-schema et '1'(par défaut) = intra-schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar,typAction2 varchar = 'add',mode integer = 1) RETURNS setof zz_log  AS 
@@ -355,8 +326,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_drop 
 --- Description : Supprimer un hub dans sa totalité
---- Variables :
---- o libSchema = Nom du schema à analyser
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_drop(libSchema varchar) RETURNS setof zz_log AS 
@@ -379,11 +348,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_export 
 --- Description : Exporter les données depuis un hub
---- Variables :
---- o libSchema = Nom du schema à analyser
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o path = chemin vers le dossier dans lequel on souhaite exporter les données
---- o format = format d'export - valeur possibles : 'sinp' et 'fcbn'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn') RETURNS setof zz_log  AS 
@@ -428,8 +392,6 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_help 
 --- Description : Création de l'aide et Accéder à la description d'un fonction
---- Variables :
---- o libFonction = Nom de la fonction à décrire (par défaut, 'all' ==> liste routes les fonctions)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_help(libFonction varchar = 'all') RETURNS setof varchar AS 
@@ -442,32 +404,36 @@ DECLARE testFonction varchar;
 BEGIN
 --- Variable
 flag := 0;
-FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
-	LOOP 
-		 CASE WHEN testFonction = libFonction THEN flag := 1; ELSE EXECUTE 'SELECT 1;'; END CASE; 
-	END LOOP;
+FOR testFonction IN EXECUTE 'SELECT nom FROM ref.help'
+LOOP 
+	CASE WHEN testFonction = libFonction THEN flag := 1; ELSE EXECUTE 'SELECT 1;'; END CASE; 
+END LOOP;
 --- Commande
 CASE WHEN libFonction = 'all' THEN
 	out := '- Pour accéder à la description d''une fonction : ';RETURN next out;
 	out := '   SELECT * FROM hub_help(''fonction'');';RETURN next out;
 	out := '- Pour utiliser une fonction : ';RETURN next out;
 	out := '  SELECT * FROM fonction(''variables'');';RETURN next out;
-	FOR testFonction IN EXECUTE 'SELECT id FROM ref.help'
-		LOOP lesvariables := '(';
-		FOR var IN EXECUTE 'SELECT id FROM ref.help_var WHERE "'||testFonction||'" = ''oui'';'
-			LOOP lesvariables := lesvariables||var||','; END LOOP;
-		EXECUTE 'SELECT trim(trailing '','' FROM '''||lesvariables||''')||'')''' INTO lesvariables;
-		out := 'SELECT * FROM '||testFonction||lesvariables;RETURN next out; END LOOP;
+	FOR testFonction IN EXECUTE 'SELECT nom FROM ref.help WHERE objet = ''fonction'''
+	LOOP
+		EXECUTE 'SELECT string_agg(champ,'','') FROM (SELECT pos, champ FROM ref.help_var WHERE nom = '''||testFonction||''' ORDER BY pos) as one;' INTO lesvariables;
+		out := 'SELECT * FROM '||testFonction||'('||lesvariables||')';RETURN next out; 
+	END LOOP;
 WHEN flag = 1 THEN
 	out := '-------------------------'; RETURN next out; 
 	out := 'Nom de la Fonction = '||libFonction;RETURN next out; 
-	EXECUTE 'SELECT ''- Description : ''||"description" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out; 
-	EXECUTE 'SELECT ''- Type : ''||"type" FROM ref.help WHERE "id" = '''||libFonction||''';' INTO out;RETURN next out; 
-	EXECUTE 'SELECT ''- Etat de la fonction : ''||"etat" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out;
-	EXECUTE 'SELECT ''- Amélioration à prevoir : ''||"amelioration" FROM ref.help WHERE "id" = '''||libFonction||''';'INTO out;RETURN next out;
+	EXECUTE 'SELECT ''- Type : ''||type FROM ref.help WHERE nom = '''||libFonction||''';'INTO out;RETURN next out; 
+	EXECUTE 'SELECT ''- Libellé : ''||libelle FROM ref.help WHERE nom = '''||libFonction||''';'INTO out;RETURN next out; 
+	EXECUTE 'SELECT ''- Description : ''||description FROM ref.help WHERE nom = '''||libFonction||''';'INTO out;RETURN next out; 
+	EXECUTE 'SELECT ''- Etat de la fonction : ''||etat FROM ref.help WHERE nom = '''||libFonction||''';'INTO out;RETURN next out;
+	EXECUTE 'SELECT ''- Amélioration à prevoir : ''||amelioration FROM ref.help WHERE nom = '''||libFonction||''';'INTO out;RETURN next out;
 	out := '-------------------------'; RETURN next out; 
 	out := 'Liste des variables :';RETURN next out;
-	FOR var IN EXECUTE 'SELECT '' o ''||"id"||'' : ''||"description"||''. Valeurs possibles = ("''||valeurs||''")'' FROM ref.help_var WHERE "'||libFonction||'" = ''oui'';'
+	FOR var IN EXECUTE 'SELECT lib||valeur||defaut FROM
+		(SELECT a.champ, pos, '' o ''||a.champ||'' : ''||z.libelle as lib FROM ref.help_var a JOIN ref.help z ON a.champ = z.nom WHERE a.nom = '''||libFonction||''') as one
+		LEFT JOIN (SELECT a.champ, CASE WHEN a.valeur_possible <> ''-'' THEN '' / Valeurs admises : ''||a.valeur_possible ELSE '''' END as valeur FROM ref.help_var a WHERE a.nom = '''||libFonction||''') as two ON one.champ = two.champ
+		LEFT JOIN (SELECT a.champ, CASE WHEN a.valeur_defaut <> ''-'' THEN '' / Valeurs par défaut : ''||a.valeur_defaut ELSE '''' END as defaut FROM ref.help_var a WHERE a.nom = '''||libFonction||''') as three ON one.champ = three.champ
+		ORDER BY pos;'
 		LOOP --- variables d'entrées
 		RETURN next var;
 		END LOOP;
@@ -479,10 +445,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_idPerm 
 --- Description : Production des identifiants uniques
---- Variables :
---- o libSchema = Nom du schema
---- o nomDomaine = nom du domaine utilisé pour produire l'identifiant permanent (avec http://)
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_idPerm(libSchema varchar, nomDomaine varchar, jdd varchar) RETURNS setof zz_log AS 
@@ -545,10 +507,6 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_import 
 --- Description : Importer des données (fichiers CSV) dans un hub
---- Variables :
---- o libSchema = Nom du schema
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o path = chemin vers le dossier dans lequel on souhaite exporter les données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, files varchar = '') RETURNS setof zz_log AS 
@@ -578,13 +536,11 @@ END; $BODY$  LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_txInfra 
+--- Nom : hub_txinfra 
 --- Description : Générer une table avec les taxon infra depuis la table zz_log_liste_taxon
---- Variables :
---- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_txInfra(libSchema varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_txinfra(libSchema varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE i varchar;
@@ -609,7 +565,7 @@ EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set nom_valide_de
 out.lib_log := 'Liste de sous taxons générée';
 
 --- Output&Log
-out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon_et_infra';out.typ_log := 'hub_txInfra';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon_et_infra';out.typ_log := 'hub_txinfra';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$  LANGUAGE plpgsql;
 
 
@@ -618,9 +574,6 @@ END; $BODY$  LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_install 
 --- Description : Installe le hub en local (concataine la construction d'un hub et l'installation des référentiels)
---- Variables :
---- o libSchema = Nom du schema
---- o path = chemin vers le dossier dans lequel on souhaite exporter les données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS setof zz_log AS 
@@ -692,11 +645,6 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_push 
 --- Description : Mise à jour des données (on pousse les données)
---- Variables :
---- o libSchema = Nom du schema à analyser
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o typAction3 = type d'action à réaliser - valeur possibles : 'del', 'add' et 'replace'(par défaut)
---- o mode = mode d'utilisation - valeur possibles : '2' = inter-schema et '1'(par défaut) = intra-schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar, typAction3 varchar = 'replace', mode integer = 1) RETURNS setof zz_log AS 
@@ -779,9 +727,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_ref 
 --- Description : Création des référentiels
---- Variables :
---- o typAction4 = type d'action à réaliser - valeur possibles : 'del', 'add' et 'replace'(par défaut)
---- o path = chemin vers le dossier dans lequel on souhaite exporter les données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_ref(typAction4 varchar, path varchar = '/home/hub/00_ref/') RETURNS setof zz_log AS 
@@ -859,14 +804,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_update 
 --- Description : Mise à jour de données (fonction utilisée par une autre fonction)
---- Variables :
---- o schemaSource = Nom du schema source
---- o schemaDest = Nom du schema de destination
---- o tableSource  = Nom de la table source
---- o tableDest  = Nom de la table de destination
---- o champRef = nom du champ de référence utilisé pour tester la jointure entre la source et la destination
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o typAction1 = type d'action à réaliser - valeur possibles : 'push_total', 'push_diff' et 'diff'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_update(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, champRef varchar, jdd varchar, typAction1 varchar = 'diff') RETURNS setof zz_log  AS 
@@ -921,10 +858,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_verif 
 --- Description : Vérification des données
---- Variables :
---- o libSchema = Nom du schema
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o typVerif = type de vérification - valeur possibles : 'obligation', 'type', 'doublon', 'vocactrl' et 'all'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif(libSchema varchar, jdd varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
@@ -1050,11 +983,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_verif_plus
 --- Description : Vérification des données
---- Variables :
---- o libSchema = Nom du schema
---- o libTable = Nom de la table
---- o libChamp = Nom du champ
---- o typVerif = type de vérification - valeur possibles : 'obligation', 'type', 'doublon', 'vocactrl' et 'all'(par défaut)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif_plus(libSchema varchar, libTable varchar, libChamp varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
@@ -1130,8 +1058,6 @@ RETURN;END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_verif_all
 --- Description : Chainage des vérification
---- Variables :
---- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS setof zz_log AS 
@@ -1148,8 +1074,6 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_log
 --- Description : ecrit les output dans le Log du schema et le log global
---- Variables :
---- o libSchema = Nom du schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log) RETURNS void AS 
