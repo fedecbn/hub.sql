@@ -4,8 +4,9 @@
 --------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------
 
---- Création de la table générale de log
+--- Création de la table générale de log et bilan
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log date);
+CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
 --- Pour le passage de version depuis le commit 0ea80726ed753ee9add5811d380f8ed4d285c368
 --- ALTER TABLE public.zz_log RENAME "libSchema" TO lib_schema;
 --- ALTER TABLE public.zz_log RENAME "libTable" TO lib_table;
@@ -361,10 +362,8 @@ BEGIN
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 	
 	typJdd := jdd;
 	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'"."temp_metadonnees" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
-WHEN jdd = 'listtaxon' THEN 
-	libTable = 'zz_log_liste_taxon';
-WHEN jdd = 'listtaxoninfra' THEN 
-	libTable = 'zz_log_liste_taxon_et_infra';
+WHEN jdd = 'list_taxon' THEN 
+	format = 'taxon';
 ELSE
 	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 
 	listJdd := ''||jdd||'';
@@ -372,18 +371,20 @@ END CASE;
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_export';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
-CASE WHEN format = 'fcbn' THEN
-	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
-		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE cd_jdd IN ('||listJdd||')) TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_meta'
+CASE WHEN format = 'fcbn' AND typJdd <> null THEN
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
 		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE cd_jdd IN ('||listJdd||')) TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log :=  jdd||'exporté au format '||format;
 WHEN format = 'sinp' THEN
 	out.lib_log :=  'format SINP à implémenter';
 WHEN format = 'taxon' THEN
+	libTable = 'zz_log_liste_taxon';
 	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	out.lib_log :=  libTable||' exporté ';
-ELSE out.lib_log :=  'format non implémenté : '||format;
+	libTable = 'zz_log_liste_taxon_et_infra';
+	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	out.lib_log :=  libTable||' exporté ';
+ELSE out.lib_log :=  'format ou jdd non implémenté : '||format;
 END CASE;
 PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
@@ -443,14 +444,14 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_idPerm 
+--- Nom : hub_idperm 
 --- Description : Production des identifiants uniques
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_idPerm(libSchema varchar, nomDomaine varchar, jdd varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_idperm(libSchema varchar, nomDomaine varchar, jdd varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE flag varchar;
+DECLARE flag integer;
 DECLARE typJdd varchar;
 DECLARE listJdd varchar;
 DECLARE champMere varchar;
@@ -461,10 +462,10 @@ DECLARE listPerm varchar;
 BEGIN
 --- Variables
 CASE WHEN jdd = 'data' THEN 
-	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'".temp_metadonnees WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
 	typJdd := jdd; champMere = 'cd_ent_mere';	champRef = 'cd_ent_perm';	tableRef = 'entite'; flag :=1;
 WHEN  jdd = 'taxa' THEN
-	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'".temp_metadonnees WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
 	typJdd := jdd;	champMere = 'cd_obs_mere';	champRef = 'cd_obs_perm';	tableRef = 'observation'; flag :=1;
 ELSE 
 	listJdd := ''||jdd||'';
@@ -478,7 +479,7 @@ ELSE
 END CASE;
 
 --- Output
-out.lib_schema := libSchema;out.lib_table := tableRef;out.lib_champ := champRef;out.typ_log := 'hub_idPerm';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema;out.lib_table := tableRef;out.lib_champ := champRef;out.typ_log := 'hub_idperm';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
 CASE WHEN flag =1 THEN
 --- Metadonnees
@@ -486,7 +487,7 @@ CASE WHEN flag =1 THEN
 		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_metadonnees" SET (cd_jdd_perm) = ('''||nomdomaine||'/cd_jdd_perm/''||(SELECT uuid_generate_v4())) WHERE cd_jdd = '''||listPerm||''' AND cd_jdd IN ('||listJdd||') AND cd_jdd_perm IS NULL;';
 		out.lib_log := 'OK';out.lib_table := '-'; PERFORM hub_log (libSchema, out); RETURN next out;
 		END LOOP;	
-	FOR listTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE tbl_name <> ''metadonnees'''  --- Peuplement du nouvel idPermanent dans les autres tables
+	FOR listTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' AND cd_table <> ''metadonnees'''  --- Peuplement du nouvel idPermanent dans les autres tables
 		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||listTable||'" ot SET cd_jdd_perm = o.cd_jdd_perm FROM "'||libSchema||'"."temp_metadonnees" o WHERE o.cd_jdd = ot.cd_jdd AND o.cd_jdd = ot.cd_jdd AND ot.cd_jdd_perm IS NULL;';
 		out.lib_log := 'OK';out.lib_table := listTable; PERFORM hub_log (libSchema, out);RETURN next out;
 		END LOOP;
@@ -495,7 +496,7 @@ CASE WHEN flag =1 THEN
 		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||tableRef||'" SET ("'||champRef||'") = ('''||nomdomaine||'/'||champRef||'/''||(SELECT uuid_generate_v4())) WHERE "'||champMere||'" = '''||listPerm||''' AND cd_jdd IN ('||listJdd||') AND "'||champRef||'" IS NULL;';
 		out.lib_log := 'Identifiant permanent produit';out.lib_table := '-'; PERFORM hub_log (libSchema, out); RETURN next out;
 		END LOOP;	
-	FOR listTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE tbl_name <> '''||tableRef||''''  --- Peuplement du nouvel idPermanent dans les autres tables
+	FOR listTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' AND cd_table <> '''||tableRef||''''  --- Peuplement du nouvel idPermanent dans les autres tables
 		LOOP EXECUTE 'UPDATE "'||libSchema||'"."temp_'||listTable||'" ot SET "'||champRef||'" = o."'||champRef||'" FROM "'||libSchema||'"."temp_'||tableRef||'" o WHERE o.cd_jdd = ot.cd_jdd AND o."'||champMere||'" = ot."'||champMere||' AND ot."'||champRef||'" IS NULL";';
 		out.lib_log := 'Identifiant permanent produit';out.lib_table := listTable; PERFORM hub_log (libSchema, out);RETURN next out;
 		END LOOP;
@@ -516,16 +517,14 @@ DECLARE out zz_log%rowtype;
 BEGIN
 --- Commande
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
-	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||jdd||';'
-		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_meta;'
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
 		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log := jdd||' importé depuis '||path;
-WHEN jdd = 'listTaxon' AND files <> '' THEN 
-	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon;TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
+WHEN jdd = 'list_taxon' AND files <> '' THEN 
+	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon; TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
 	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||files||''' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	out.lib_log := jdd||' importé depuis '||path;
-WHEN jdd = 'listTaxon' AND files = '' THEN out.lib_log := 'Paramètre "files" non spécifié';
+WHEN jdd = 'list_taxon' AND files = '' THEN out.lib_log := 'Paramètre "files" non spécifié';
 ELSE out.lib_log := 'Problème identifié dans le jdd (ni data, ni taxa,ni meta)'; END CASE;
 
 --- Output&Log
