@@ -5,7 +5,8 @@
 --------------------------------------------------------------------------------------------
 
 --- Création de la table générale de log et bilan
-CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log date);
+--- DROP TABLE public.zz_log CASCADE;
+CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
 
 ---------------------------------------------------------------------------------------------------------
@@ -360,15 +361,15 @@ WHEN jdd = 'list_taxon' THEN
 	format = 'taxon';
 ELSE
 	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 
-	listJdd := ''||jdd||'';
+	listJdd := ''''||jdd||'''';
 END CASE;
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_export';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
-CASE WHEN format = 'fcbn' AND typJdd <> null THEN
+CASE WHEN format = 'fcbn' AND typJdd <> '' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
 		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE cd_jdd IN ('||listJdd||')) TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	out.lib_log :=  jdd||'exporté au format '||format;
+	out.lib_log :=  jdd||' exporté au format '||format;
 WHEN format = 'sinp' THEN
 	out.lib_log :=  'format SINP à implémenter';
 WHEN format = 'taxon' THEN
@@ -378,7 +379,7 @@ WHEN format = 'taxon' THEN
 	libTable = 'zz_log_liste_taxon_et_infra';
 	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	out.lib_log :=  libTable||' exporté ';
-ELSE out.lib_log :=  'format ou jdd non implémenté : '||format;
+ELSE out.lib_log :=  'format ('||format||') non implémenté ou jdd ('||jdd||') mauvais';
 END CASE;
 PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
@@ -880,9 +881,9 @@ out.lib_log = '';
 
 --- Test concernant l'obligation
 CASE WHEN (typVerif = 'obligation' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||' WHERE obligation = ''Oui'''
+FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''''
 LOOP		
-	FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''' AND obligation = ''Oui'''
+	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' AND typ_jdd = '''||typJdd||''' AND obligation = ''ui'''
 	LOOP		
 		compte := 0;
 		EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" IS NULL' INTO compte;
@@ -899,9 +900,9 @@ END CASE;
 
 --- Test concernant le typage des champs
 CASE WHEN (typVerif = 'type' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd||';'
+FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''''
 	LOOP
-	FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''';'
+	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' AND typ_jdd = '''||typJdd||''''
 	LOOP	
 		compte := 0;
 		EXECUTE 'SELECT DISTINCT format FROM ref.fsd WHERE cd_champ = '''||libChamp||'''' INTO typChamp;
@@ -929,9 +930,9 @@ END CASE;
 
 --- Test concernant les doublon
 CASE WHEN (typVerif = 'doublon' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
+FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''''
 	LOOP
-	FOR libChamp in EXECUTE 'SELECT string_agg(''"''||cd||''"'',''||'') FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''' AND unicite = ''Oui'''
+	FOR libChamp in EXECUTE 'SELECT string_agg(''"''||cd_champ||''"'',''||'') FROM ref.fsd WHERE cd_table = '''||libTable||''' AND unicite = ''Oui'' AND typ_jdd = '''||typJdd||''''
 		LOOP	
 		compte := 0;
 		EXECUTE 'SELECT count('||libChamp||') FROM "'||libSchema||'"."temp_'||libTable||'" GROUP BY '||libChamp||' HAVING COUNT('||libChamp||') > 1' INTO compte;
@@ -948,12 +949,12 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT tbl_name FROM ref.fsd_'||typJdd
-	LOOP FOR libChamp in EXECUTE 'SELECT cd FROM ref.fsd_'||typJdd||' WHERE tbl_name = '''||libTable||''';'
-		LOOP EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE "typChamp" = '''||libChamp||''' ;' INTO flag;
+FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''''
+	LOOP FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' AND typ_jdd = '''||typJdd||''''
+		LOOP EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
 		CASE WHEN flag = 1 THEN
 			compte := 0;
-			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL'  INTO compte;
+			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = code_valeur WHERE code_valeur IS NULL'  INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
 				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Valeur(s) non listée(s) => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''vocactrl'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
@@ -969,7 +970,7 @@ END CASE;
 
 --- Le 100%
 CASE WHEN out.lib_log = '' THEN
-	out.lib_table := '-'; out.lib_champ := '-'; out.lib_log := jdd||' conformes pour '||typVerif; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out); return next out;
+	out.lib_table := '-'; out.lib_champ := typVerif; out.lib_log := jdd||' conformes pour '||typVerif; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out); return next out;
 ELSE ---Rien
 END CASE;
 
@@ -1037,9 +1038,9 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
-	EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE "typChamp" = '''||libChamp||''' ;' INTO flag;
+	EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
 		CASE WHEN flag = 1 THEN
-		FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = "cdChamp" WHERE "cdChamp" IS NULL'
+		FOR champRefSelected IN EXECUTE 'SELECT "'||champRef||'" FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = code_valeur WHERE code_valeur IS NULL'
 		LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  "'||champRef||'" = '''||champRefSelected||''''; return next out; END LOOP;
 	ELSE ---Rien
 	END CASE;
