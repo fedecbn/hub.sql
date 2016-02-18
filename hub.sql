@@ -5,7 +5,7 @@
 --------------------------------------------------------------------------------------------
 
 --- Création de la table générale de log et bilan
---- DROP TABLE public.zz_log CASCADE;
+--- DROP TABLE public.zz_log CASCADE; -- NB : cette fonction supprime également toutes les fonctions = intéressant pour réinitialiser.
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
 
@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Attention listJdd null sur jdd erroné
---- DROP FUNCTION hub_add(varchar,varchar, varchar, varchar,varchar, varchar, varchar);
 CREATE OR REPLACE FUNCTION hub_add(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar,champRef varchar, jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
@@ -41,7 +40,7 @@ WHEN champRef = 'cd_obs_perm' THEN typJdd = 'data';flag := 1;
 WHEN champRef = 'cd_ent_perm' THEN typJdd = 'taxa';flag := 1;
 ELSE flag := 0;
 END CASE;
-EXECUTE 'SELECT string_agg(''a."''||cd||''" = b."''||cd||''"'','' AND '') FROM ref.fsd_'||typJdd||' WHERE (tbl_name = '''||tableSource||''' OR tbl_name = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
+EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' AND (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
 source := '"'||schemaSource||'"."'||tableSource||'"';
 destination := '"'||schemaDest||'"."'||tableDest||'"';
 
@@ -182,7 +181,7 @@ ELSE
 	';
 	--- LOG
 	EXECUTE '
-	CREATE TABLE "'||schema_lower||'".zz_log  (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log date);
+	CREATE TABLE "'||schema_lower||'".zz_log  (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 	';
 	out.lib_log := 'Schema '||schema_lower||' créé';
 END CASE;
@@ -222,7 +221,7 @@ ELSE flag := 0;
 END CASE;
 source := '"'||schemaSource||'"."'||tableSource||'"';
 destination := '"'||schemaDest||'"."'||tableDest||'"';
-EXECUTE 'SELECT string_agg(''a."''||cd||''" = b."''||cd||''"'','' AND '') FROM ref.fsd_'||typJdd||' WHERE (tbl_name = '''||tableSource||''' OR tbl_name = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
+EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' AND (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
 --- Output&Log
 out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-';out.typ_log := 'hub_del'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 
@@ -512,7 +511,7 @@ DECLARE out zz_log%rowtype;
 BEGIN
 --- Commande
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
-	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||jdd||''' OR typ_jdd = ''meta'';'
 		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log := jdd||' importé depuis '||path;
 WHEN jdd = 'list_taxon' AND files <> '' THEN 
@@ -570,6 +569,7 @@ END; $BODY$  LANGUAGE plpgsql;
 --- Description : Installe le hub en local (concataine la construction d'un hub et l'installation des référentiels)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- DROP FUNCTION hub_install(varchar,varchar)
 CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -828,7 +828,7 @@ WHEN champRef = 'cd_obs_perm' THEN typJdd = 'data';flag := 1;
 WHEN champRef = 'cd_ent_perm' THEN typJdd = 'taxa';flag := 1;
 ELSE flag := 0;
 END CASE;
-EXECUTE 'SELECT string_agg(''a."''||cd||''" = b."''||cd||''"'','' AND '') FROM ref.fsd_'||typJdd||' WHERE (tbl_name = '''||tableSource||''' OR tbl_name = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
+EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' AND (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
 source := '"'||schemaSource||'"."'||tableSource||'"';
 destination := '"'||schemaDest||'"."'||tableDest||'"';
 --- Output
@@ -1057,6 +1057,7 @@ RETURN;END;$BODY$ LANGUAGE plpgsql;
 --- Description : Chainage des vérification
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- DROP FUNCTION hub_verif_all(varchar)
 CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
