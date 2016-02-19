@@ -89,12 +89,19 @@ BEGIN
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_bilan';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
-EXECUTE 'UPDATE public.bilan SET 
-	data_nb_releve = (SELECT count(*) FROM "'||libSchema||'".releve),
-	data_nb_observation = (SELECT count(*) FROM "'||libSchema||'".observation),
-	data_nb_taxon = (SELECT count(DISTINCT cd_ref) FROM "'||libSchema||'".observation),
-	taxa_nb_taxon = (SELECT count(*) FROM "'||libSchema||'".entite) 
-	WHERE lib_cbn = '''||libSchema||'''
+EXECUTE '
+UPDATE public.bilan SET 
+data_nb_releve = (SELECT count(*) FROM '||libSchema||'.releve),
+data_nb_observation = (SELECT count(*) FROM '||libSchema||'.observation),
+data_nb_taxon = (SELECT count(DISTINCT cd_ref) FROM '||libSchema||'.observation),
+taxa_nb_taxon = (SELECT count(*) FROM '||libSchema||'.entite),
+temp_data_nb_releve = (SELECT count(*) FROM '||libSchema||'.temp_releve),
+temp_data_nb_observation = (SELECT count(*) FROM '||libSchema||'.temp_observation),
+temp_data_nb_taxon = (SELECT count(DISTINCT cd_ref) FROM '||libSchema||'.temp_observation),
+temp_taxa_nb_taxon = (SELECT count(*) FROM '||libSchema||'.temp_entite),
+derniere_action = (SELECT typ_log||'' : ''||lib_log FROM '||libSchema||'.zz_log WHERE date_log = (SELECT max(date_log) FROM '||libSchema||'.zz_log) GROUP BY typ_log,lib_log,date_log LIMIT 1),
+date_derniere_action = (SELECT max(date_log) FROM '||libSchema||'.zz_log)
+WHERE lib_cbn = '''||libSchema||'''
 	';
 --- Output&Log
 out.lib_log = 'bilan réalisé';
@@ -1062,7 +1069,6 @@ CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS setof zz_log
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN
-TRUNCATE public.verification;
 SELECT * into out FROM hub_verif(libSchema,'meta','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'data','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'taxa','all');return next out;
