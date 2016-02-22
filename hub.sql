@@ -332,8 +332,15 @@ WHEN typAction = 'del' AND flag = 1 THEN
 ELSE out.lib_table := libTable; out.lib_log := jdd||' n''est pas un jeu de données valide'; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
 
-CASE WHEN (ct = ct2) THEN out.typ_log := 'hub_diff'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';out.lib_log := 'Auncune différence sur le jdd '||jdd; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out; 
-ELSE SELECT 1 into nothing;RETURN NEXT out; END CASE;
+--- Last log
+out.typ_log := 'hub_diff'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-'; out.nb_occurence := ct||' tables analysées';
+CASE WHEN ct = ct2 AND typAction = 'del' THEN out.lib_log := 'Aucun point commun sur le jdd '||jdd;  
+WHEN ct <> ct2 AND typAction = 'del' THEN out.lib_log := 'Des points communs sont présents - jdd '||jdd; 
+WHEN ct = ct2 AND typAction = 'add' THEN out.lib_log := 'Aucune différence sur le jdd '||jdd;
+WHEN ct <> ct2 AND typAction = 'add' THEN out.lib_log := 'Des différences sont présetes - jdd '||jdd;
+ELSE SELECT 1 INTO  nothing; END CASE;
+
+PERFORM hub_log (libSchema, out);RETURN NEXT out; 
 
 END;$BODY$ LANGUAGE plpgsql;
 
