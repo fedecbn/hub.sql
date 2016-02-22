@@ -534,18 +534,33 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||jdd||''' OR typ_jdd = ''meta'';'
 		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log := jdd||' importé depuis '||path;
-WHEN jdd = 'list_taxon' AND files <> '' THEN 
-	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon; TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
-	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||files||''' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	out.lib_log := jdd||' importé depuis '||path;
-WHEN jdd = 'list_taxon' AND files = '' THEN out.lib_log := 'Paramètre "files" non spécifié';
-ELSE out.lib_log := 'Problème identifié dans le jdd (ni data, ni taxa,ni meta)'; END CASE;
+ELSE out.lib_log := 'Problème identifié dans le jdd (ni data, ni taxa)'; END CASE;
 
 --- Output&Log
 out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := '-';out.typ_log := 'hub_import';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$  LANGUAGE plpgsql;
 
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_import_taxon 
+--- Description : Importer une liste de taxon dans un hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_import_taxon(libSchema varchar, path varchar, files varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+BEGIN
+--- Commande
+CASE WHEN files <> '' THEN 
+	EXECUTE 'TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon; TRUNCATE TABLE "'||libSchema||'".zz_log_liste_taxon_et_infra;';
+	EXECUTE 'COPY "'||libSchema||'".zz_log_liste_taxon FROM '''||path||files||''' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	out.lib_log := files||' importé depuis '||path;
+ELSE out.lib_log := 'Paramètre "files" incorrect'; END CASE;
+
+--- Output&Log
+out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon';out.typ_log := 'hub_import_taxon';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+END; $BODY$  LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
