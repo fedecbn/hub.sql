@@ -126,7 +126,7 @@ BEGIN
 --- Variables 
 CASE WHEN typPartie = 'temp' THEN flag :=1; prefixe = 'temp_'; WHEN typPartie = 'propre' THEN flag :=1; prefixe = ''; ELSE flag :=0; END CASE;
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'"."'||prefixe||'metadonnees" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := ''||jdd||'';END CASE;
+ELSE listJdd := ''''||jdd||'''';END CASE;
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
@@ -675,6 +675,8 @@ CASE WHEN flag = 1 THEN
 ELSE ---Log
 	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_pull';SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_log := 'ERREUR : sur champ jdd = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
+
+
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -730,7 +732,6 @@ CASE WHEN typAction = 'replace' AND flag = 1 THEN
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , champRef, jdd, 'push_total'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
-
 --- Ajout de la différence
 WHEN typAction = 'add' AND flag = 1 THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
@@ -750,7 +751,7 @@ WHEN typAction = 'add' AND flag = 1 THEN
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out;PERFORM hub_log (libSchema, out);  ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 	ct2 = ct2/2;
---- Suppression de l'existant de la partie temporaire
+--- Suppression de l'existant depuis la partie temporaire
 WHEN typAction = 'del' AND flag = 1 THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
 		ct = ct+1;
@@ -767,8 +768,17 @@ ELSE ---Log
 	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_push';SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_log := 'ERREUR : sur champ action = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
 
-CASE WHEN (ct = ct2) THEN out.typ_log := 'hub_push'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';out.lib_log := 'Auncune différence à ajouter pour le jdd '||jdd; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out; 
-ELSE SELECT 1 into nothing;RETURN NEXT out; END CASE;
+---Log final
+out.typ_log := 'hub_push'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';
+CASE 
+WHEN (ct = ct2) AND typAction = 'replace' THEN out.lib_log := 'Partie temporaire vide - jdd = '||jdd; out.nb_occurence := '-'; 
+WHEN (ct <> ct2) AND typAction = 'replace' THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := '-';
+WHEN (ct = ct2) AND typAction = 'add' THEN out.lib_log := 'Aucune modification à apporter à la partie propre - jdd = '||jdd; out.nb_occurence := '-'; 
+WHEN (ct <> ct2) AND typAction = 'add' THEN out.lib_log := 'Modification apportées à la partie propre - jdd = '||jdd; out.nb_occurence := '-';
+WHEN (ct = ct2) AND typAction = 'del' THEN out.lib_log := 'Aucun point commun entre les partie propre et temporaire - jdd = '||jdd; out.nb_occurence := '-'; 
+WHEN (ct <> ct2) AND typAction = 'del' THEN out.lib_log := 'Partie temporaire nettoyée - jdd = '||jdd; out.nb_occurence := '-';
+ELSE SELECT 1 into nothing; END CASE;
+PERFORM hub_log (libSchema, out);RETURN NEXT out; 
 
 END;$BODY$ LANGUAGE plpgsql;
 
