@@ -48,30 +48,30 @@ destination := '"'||schemaDest||'"."'||tableDest||'"';
 out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commande
 CASE WHEN typAction = 'push_total' THEN --- CAS utilisé pour ajouter en masse.
-	EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
+	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
 	EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
-	EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' z WHERE cd_jdd IN ('||listJdd||')';
-		out.nb_occurence := 'total'; out.lib_log := 'Jdd complet(s) ajouté(s)'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+	EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' a WHERE cd_jdd IN ('||listJdd||')';
+		out.nb_occurence := 'total'; out.lib_log := 'Jdd complet(s) ajouté(s)'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
 
 WHEN typAction = 'push_diff' THEN --- CAS utilisé pour ajouter les différences
 	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
 	EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b LEFT JOIN '||destination||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND b.cd_jdd IN ('||listJdd||')' INTO compte; 
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		EXECUTE 'SELECT string_agg(''z."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
+		EXECUTE 'SELECT string_agg(''a."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
 		EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
-		EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' z LEFT JOIN '||source||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND cd_jdd IN ('||listJdd||')';
-		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Concept(s) ajouté(s)'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
-	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+		EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE b."'||champRef||'" IS NULL AND a.cd_jdd IN ('||listJdd||')';
+		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Concept(s) ajouté(s)'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
 	END CASE;	
 
 WHEN typAction = 'diff' THEN --- CAS utilisé pour analyser les différences
 	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
 	EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b LEFT JOIN '||destination||' a ON '||jointure||' WHERE a."'||champRef||'" IS NULL AND b.cd_jdd IN ('||listJdd||')' INTO compte; 
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		out.nb_occurence := compte||' occurence(s)'; out.lib_log := tableSource||' => '||tableDest; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
-	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+		out.nb_occurence := compte||' occurence(s)'; out.lib_log := tableSource||' => '||tableDest; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
+	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 	END CASE;
-ELSE out.lib_champ := '-'; out.lib_log := 'ERREUR : sur champ action = '||typAction; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+ELSE out.lib_champ := '-'; out.lib_log := 'ERREUR : sur champ action = '||typAction; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 END CASE;	
 END;$BODY$ LANGUAGE plpgsql;
 
@@ -239,14 +239,14 @@ EXECUTE 'SELECT count(DISTINCT b."'||champRef||'") FROM '||source||' b JOIN '||d
 CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
 	out.nb_occurence := compte||' occurence(s)'; ---log
 	CASE WHEN typAction = 'push_diff' THEN
-		EXECUTE 'SELECT string_agg(''''||'||champRef||'||'''','','') FROM '||source INTO listeChamp1;
+		EXECUTE 'SELECT string_agg(''''''''||'||champRef||'||'''''''','','') FROM '||source INTO listeChamp1;
 		EXECUTE 'DELETE FROM '||destination||' WHERE "'||champRef||'" IN ('||listeChamp1||')';
-		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts supprimés'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts supprimés'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 	WHEN typAction = 'diff' THEN
 		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts à supprimer'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
-	ELSE out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'ERREUR : sur champ action = '||typAction; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+	ELSE out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'ERREUR : sur champ action = '||typAction; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 	END CASE;
-ELSE out.lib_log := 'Aucune différence';out.nb_occurence := '-'; PERFORM hub_log (schemaSource, out); RETURN NEXT out;
+ELSE out.lib_log := 'Aucune différence';out.nb_occurence := '-'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out); 
 END CASE;	
 END;$BODY$ LANGUAGE plpgsql;
 
@@ -261,6 +261,8 @@ CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar,typAction var
 $BODY$ 
 DECLARE out zz_log%rowtype;
 DECLARE flag integer;
+DECLARE ct integer;
+DECLARE ct2 integer;
 DECLARE typJdd varchar;
 DECLARE libTable varchar;
 DECLARE tableSource varchar;
@@ -271,14 +273,17 @@ DECLARE champRef varchar;
 DECLARE tableRef varchar;
 DECLARE nothing varchar;
 BEGIN
+--- Output&Log
+out.lib_schema := schemaSource; 
 --- Variables
+ct =0; ct2=0;
 CASE WHEN jdd = 'data' THEN 
 	champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
 WHEN jdd = 'taxa' THEN 
-	champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
+	champRef = 'cd_ent_perm'; tableRef = 'entite'; flag := 1;
 ELSE 
 	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
-	CASE WHEN typJdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
+	CASE WHEN typJdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'releve'; flag := 1;
 	WHEN typJdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
 	ELSE flag := 0;
 	END CASE;
@@ -289,38 +294,46 @@ CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN m
 CASE WHEN typAction = 'add' AND flag = 1 THEN
 	--- Metadonnees
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct +1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM  hub_add(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm' , jdd ,'diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 		SELECT * INTO out FROM  hub_update(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm', jdd,'diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 		SELECT * INTO out FROM  hub_add(schemaDest,schemaSource, tableDest, tableSource ,'cd_jdd_perm', jdd,'diff'); --- sens inverse (champ présent dans le propre et absent dans le temporaire)
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 	END LOOP;
 	--- Données
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct +1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM  hub_add(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd,'diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 		SELECT * INTO out FROM  hub_update(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd,'diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 		SELECT * INTO out FROM  hub_add(schemaDest,schemaSource, tableDest, tableSource ,champRef, jdd,'diff'); --- sens inverse (champ présent dans le propre et absent dans le temporaire)
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 	END LOOP;
+	ct2 = ct2/3;
 WHEN typAction = 'del' AND flag = 1 THEN
 	--- Metadonnees
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct +1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM  hub_del(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm' , jdd ,'diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 	END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct +1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM  hub_del(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd,'diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
 	END LOOP;
 ELSE out.lib_table := libTable; out.lib_log := jdd||' n''est pas un jeu de données valide'; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
+
+CASE WHEN (ct = ct2) THEN out.typ_log := 'hub_diff'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';out.lib_log := 'Auncune différence sur le jdd '||jdd; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out; 
+ELSE SELECT 1 into nothing;RETURN NEXT out; END CASE;
 
 END;$BODY$ LANGUAGE plpgsql;
 
@@ -653,6 +666,8 @@ CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar, typAction var
 $BODY$ 
 DECLARE out zz_log%rowtype; 
 DECLARE flag integer; 
+DECLARE ct integer; 
+DECLARE ct2 integer; 
 DECLARE typJdd varchar; 
 DECLARE libTable varchar; 
 DECLARE schemaSource varchar; 
@@ -665,6 +680,7 @@ DECLARE nothing varchar;
 
 BEGIN
 --- Variables Jdd
+ct=0;ct2=0;
 CASE WHEN jdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
 	WHEN jdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
 	ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
@@ -681,48 +697,57 @@ CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN m
 CASE WHEN typAction = 'replace' AND flag = 1 THEN
 	SELECT * INTO out FROM hub_clear(libSchema, jdd, 'propre'); return next out;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm', jdd, 'push_total'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , champRef, jdd, 'push_total'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 
 --- Ajout de la différence
 WHEN typAction = 'add' AND flag = 1 THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm', jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 		SELECT * INTO out FROM hub_update(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm', jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 		SELECT * INTO out FROM hub_update(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd, 'push_diff');
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out;PERFORM hub_log (libSchema, out);  ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
-
+	ct2 = ct2/2;
 --- Suppression de l'existant de la partie temporaire
 WHEN typAction = 'del' AND flag = 1 THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_del(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm', jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_del(schemaSource,schemaDest, tableSource, tableDest ,champRef, jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 ELSE ---Log
 	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_push';SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_log := 'ERREUR : sur champ action = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
+
+CASE WHEN (ct = ct2) THEN out.typ_log := 'hub_push'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';out.lib_log := 'Auncune différence à ajouter pour le jdd '||jdd; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out; 
+ELSE SELECT 1 into nothing;RETURN NEXT out; END CASE;
+
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -849,12 +874,12 @@ CASE WHEN (compte > 0) AND flag = 1 THEN
 	CASE WHEN typAction = 'push_diff' THEN
 		EXECUTE 'SELECT string_agg(''''''''||b."'||champRef||'"||'''''''','','') FROM '||source||' a JOIN '||destination||' b ON '||jointure||' WHERE a.cd_jdd IN ('||listJdd||') AND ('||wheres||');' INTO val;
 		EXECUTE 'UPDATE '||destination||' a SET '||listeChamp||' FROM (SELECT * FROM '||source||') b WHERE a."'||champRef||'" IN ('||val||')';
-		out.lib_table := tableSource; out.lib_log := 'Concept(s) modifié(s)'; out.nb_occurence := compte||' occurence(s)';PERFORM hub_log (schemaSource, out); return next out;
+		out.lib_table := tableSource; out.lib_log := 'Concept(s) modifié(s)'; out.nb_occurence := compte||' occurence(s)'; return next out; ---PERFORM hub_log (schemaSource, out);
 	WHEN typAction = 'diff' THEN
-		out.lib_log := 'Concept(s) à modifier'; out.nb_occurence := compte||' occurence(s)';PERFORM hub_log (schemaSource, out); return next out;
-	ELSE out.lib_log := 'ERREUR : sur champ action = '||typAction; out.nb_occurence := compte||' occurence(s)';PERFORM hub_log (schemaSource, out); return next out;
+		out.lib_log := 'Concept(s) à modifier'; out.nb_occurence := compte||' occurence(s)';return next out; ---PERFORM hub_log (schemaSource, out); 
+	ELSE out.lib_log := 'ERREUR : sur champ action = '||typAction; out.nb_occurence := compte||' occurence(s)';return next out; ---PERFORM hub_log (schemaSource, out); 
 	END CASE;
-ELSE out.lib_log := 'Aucune différence'; out.nb_occurence := '-';PERFORM hub_log (schemaSource, out); return next out;
+ELSE out.lib_log := 'Aucune différence'; out.nb_occurence := '-'; return next out; ---PERFORM hub_log (schemaSource, out);
 END CASE;	
 END;$BODY$ LANGUAGE plpgsql;
 
