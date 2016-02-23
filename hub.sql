@@ -616,7 +616,6 @@ CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN
---- CREATE TABLE IF NOT EXISTS public.zz_log  (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log date);
 SELECT * INTO out FROM hub_ref('create',path);PERFORM hub_log ('public', out);RETURN NEXT out;
 SELECT * INTO out FROM hub_clone(libSchema);PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END;$BODY$ LANGUAGE plpgsql;
@@ -625,16 +624,14 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_pull 
 --- Description : Récupération d'un jeu de données depuis la partie propre vers la partie temporaire
---- Variables :
---- o libSchema = Nom du schema
---- o jdd = jeu de donnée (code du jeu ou 'data' ou 'taxa')
---- o mode = mode d'utilisation - valeur possibles : '2' = inter-schema et '1'(par défaut) = intra-schema
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_pull(libSchema varchar,jdd varchar, mode integer = 1) RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype; 
 DECLARE flag integer; 
+DECLARE ct integer; 
+DECLARE ct2 integer; 
 DECLARE typJdd varchar; 
 DECLARE libTable varchar; 
 DECLARE schemaSource varchar; 
@@ -663,18 +660,28 @@ CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN m
 CASE WHEN flag = 1 THEN
 	SELECT * INTO out FROM hub_clear(libSchema, jdd, 'temp'); return next out;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest ,'cd_jdd_perm', jdd, 'push_total'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , champRef, jdd, 'push_total'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE SELECT 1 INTO nothing; END CASE;
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 ELSE ---Log
 	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_pull';SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_log := 'ERREUR : sur champ jdd = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
+
+---Log final
+out.typ_log := 'hub_pull'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';
+CASE 
+WHEN (ct = ct2) THEN out.lib_log := 'Partie propre vide - jdd = '||jdd; out.nb_occurence := '-'; 
+WHEN (ct <> ct2) THEN out.lib_log := 'Données tirées - jdd = '||jdd; out.nb_occurence := '-';
+ELSE SELECT 1 into nothing; END CASE;
+PERFORM hub_log (libSchema, out);RETURN NEXT out; 
 
 
 END; $BODY$ LANGUAGE plpgsql;
