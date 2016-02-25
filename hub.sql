@@ -535,24 +535,47 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- DROP FUNCTION hub_import(varchar, varchar, varchar, varchar)
-CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, files varchar = '') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, rempla boolean = false, files varchar = '') RETURNS setof zz_log AS 
 $BODY$
+DECLARE typJdd varchar;
+DECLARE listJdd varchar;
 DECLARE libTable varchar;
 DECLARE out zz_log%rowtype;
 BEGIN
+--- Variable
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 	
+	typJdd := jdd;
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'"."temp_metadonnees" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+ELSE
+	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 
+	listJdd := ''''||jdd||'''';
+END CASE;
 --- Commande
-CASE WHEN (jdd = 'data' OR jdd = 'taxa') AND files = '' THEN 
-	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||jdd||''' OR typ_jdd = ''meta'';'
-		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	out.lib_log := jdd||' importé depuis '||path;
-WHEN (jdd = 'data' OR jdd = 'taxa') AND files <> '' THEN 
-	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	out.lib_log := files||' importé depuis '||path;
-WHEN jdd = 'all' THEN 
+--- Cas du chargement de tous les jeux de données
+CASE WHEN jdd = 'all' THEN 
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;'
-		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	out.lib_log := ' Tous les fichiers ont été importé depuis '||path;
-ELSE out.lib_log := 'Problème identifié dans le jdd (ni data, ni taxa)'; END CASE;
+	LOOP 
+		CASE WHEN rempla = TRUE THEN EXECUTE 'TRUNCATE "'||libSchema||'".temp_'||libTable||';';out.lib_log := ' Tous les fichiers ont été remplacé '; ELSE out.lib_log := ' Tous les fichiers ont été importé '; END CASE;
+		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; 
+	END LOOP;
+--- Cas du chargement global (tous les fichiers)
+WHEN files = '' THEN
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||jdd||''' OR typ_jdd = ''meta'';'
+	LOOP 
+		CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||libTable||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
+		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; 
+	END LOOP;
+	CASE WHEN rempla = TRUE THEN out.lib_log := 'jdd '||jdd||' remplacé'; ELSE out.lib_log := 'jdd '||jdd||' ajouté';END CASE;
+--- Cas du chargement spécifique (un seul fichier)
+ELSE
+	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
+	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier '||files||' remplacé'; ELSE out.lib_log := 'fichier '||files||' ajouté'; END CASE;
+END CASE;
+--- WHEN jdd <> 'data' AND jdd <> 'taxa' AND files <> '' THEN 
+--- 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; out.lib_log := 'Fichier remplacé'; ELSE out.lib_log := 'Fichier ajouté'; END CASE;
+--- 	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+--- ELSE out.lib_log := 'Problème identifié (Soit le jdd soit le fichier)'; END CASE;
 
 --- Output&Log
 out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := '-';out.typ_log := 'hub_import';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
