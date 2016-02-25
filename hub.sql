@@ -534,16 +534,24 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Importer des données (fichiers CSV) dans un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- DROP FUNCTION hub_import(varchar, varchar, varchar, varchar)
 CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, files varchar = '') RETURNS setof zz_log AS 
 $BODY$
 DECLARE libTable varchar;
 DECLARE out zz_log%rowtype;
 BEGIN
 --- Commande
-CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
+CASE WHEN (jdd = 'data' OR jdd = 'taxa') AND files = '' THEN 
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||jdd||''' OR typ_jdd = ''meta'';'
 		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log := jdd||' importé depuis '||path;
+WHEN (jdd = 'data' OR jdd = 'taxa') AND files <> '' THEN 
+	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	out.lib_log := files||' importé depuis '||path;
+WHEN jdd = 'all' THEN 
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;'
+		LOOP EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
+	out.lib_log := ' Tous les fichiers ont été importé depuis '||path;
 ELSE out.lib_log := 'Problème identifié dans le jdd (ni data, ni taxa)'; END CASE;
 
 --- Output&Log
