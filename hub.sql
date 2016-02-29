@@ -728,6 +728,7 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- DROP FUNCTION hub_push(varchar,varchar, varchar, integer);
+--- DROP FUNCTION hub_push(varchar,varchar, varchar, integer);
 CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar, typAction varchar = 'replace', mode integer = 1) RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype; 
@@ -740,43 +741,30 @@ DECLARE schemaSource varchar;
 DECLARE schemaDest varchar; 
 DECLARE tableSource varchar; 
 DECLARE tableDest varchar; 
-DECLARE champRef varchar; 
-DECLARE tableRef varchar; 
 DECLARE nothing varchar; 
 
 BEGIN
 --- Variables Jdd
 ct=0;ct2=0;
-CASE WHEN jdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
-WHEN jdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN typJdd = jdd;
 ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
-	CASE WHEN typJdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
-		WHEN typJdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
-		ELSE flag := 0;
-	END CASE;
 END CASE;
 --- mode 1 = intra Shema / mode 2 = entre shema et agregation
 CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; ELSE flag :=0; END CASE;
 
 --- Commandes
 --- Remplacement total = hub_clear + hub_add
-CASE WHEN typAction = 'replace' AND flag = 1 THEN
+CASE WHEN typAction = 'replace' THEN
 	SELECT * INTO out FROM hub_clear(libSchema, jdd, 'propre'); return next out;
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP
-		ct = ct+1;
-		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
-		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
-	END LOOP;
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
 		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 --- Ajout de la différence = hub_add + hub_update sur meta et data/taxa
-WHEN typAction = 'add' AND flag = 1 THEN
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+WHEN typAction = 'add' THEN
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
 		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_diff'); 
@@ -784,24 +772,11 @@ WHEN typAction = 'add' AND flag = 1 THEN
 		SELECT * INTO out FROM hub_update(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_diff'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
-		ct = ct+1;
-		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
-		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
-		SELECT * INTO out FROM hub_update(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_diff');
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out;PERFORM hub_log (libSchema, out);  ELSE ct2 = ct2+1; END CASE;
-	END LOOP;
 	ct2 = ct2/2;
 --- Suppression de l'existant depuis la partie temporaire = hub_del
-WHEN typAction = 'del' AND flag = 1 THEN
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+WHEN typAction = 'del' THEN
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
 		ct = ct+1;
-		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
-		SELECT * INTO out FROM hub_del(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_diff'); 
-			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
-	END LOOP;
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
 		SELECT * INTO out FROM hub_del(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_diff'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
