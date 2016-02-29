@@ -71,7 +71,7 @@ WHEN typAction = 'push_diff' THEN --- CAS utilisé pour ajouter les différences
 WHEN typAction = 'diff' THEN --- CAS utilisé pour analyser les différences
 	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
 	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'hub_diff : '||tableSource||' => '||tableDest; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
+		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Différence : concept à ajouter depuis '||tableSource||' vers '||tableDest; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
 	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence détectée'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 	END CASE;
 WHEN typAction = 'diff_plus' THEN --- CAS utilisé pour analyser les différences en profondeur
@@ -251,7 +251,7 @@ CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être a
 		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts supprimés'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 		---out.nb_occurence := compte||' occurence(s)';out.lib_log := cmd; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
 	WHEN typAction = 'diff' THEN
-		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts à supprimer'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Points communs'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
 	WHEN typAction = 'diff_plus' THEN
 		CASE WHEN (compte > 0) THEN
 		cmd := 'SELECT '||champRef||' FROM '||source||' a RIGHT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefc||' AND a.cd_jdd IN ('||listJdd||');';
@@ -384,30 +384,31 @@ DECLARE listJdd varchar;
 BEGIN
 --- Variables Jdd
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 	
-	typJdd := jdd;
+	typJdd := 'WHERE typ_jdd = '''||jdd||''' OR typ_jdd = ''meta''';
 	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'"."temp_metadonnees" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+	listJdd := 'WHERE cd_jdd IN ('||listJdd||')';
+WHEN jdd = 'all' THEN 
+	typJdd := ''; listJdd = '';
 WHEN jdd = 'list_taxon' THEN 
-	format = 'taxon';
+	format = 'list_taxon';
 ELSE
-	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 
-	listJdd := ''''||jdd||'''';
+	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+	typJdd := 'WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta''';
+	listJdd := 'WHERE cd_jdd IN ('''||jdd||''')';
 END CASE;
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_export';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
-CASE WHEN format = 'fcbn' AND typJdd <> '' THEN
-	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
-		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" WHERE cd_jdd IN ('||listJdd||')) TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
-	out.lib_log :=  jdd||' exporté au format '||format;
+CASE WHEN format = 'fcbn' THEN
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd '||typJdd||''
+		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" '||listJdd||') TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
+	out.lib_log :=  'Tous les jdd ont été exporté au format '||format;
 WHEN format = 'sinp' THEN
 	out.lib_log :=  'format SINP à implémenter';
-WHEN format = 'taxon' THEN
-	libTable = 'zz_log_liste_taxon';
-	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	out.lib_log :=  libTable||' exporté ';
-	libTable = 'zz_log_liste_taxon_et_infra';
-	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	out.lib_log :=  libTable||' exporté ';
+WHEN format = 'list_taxon' THEN
+	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_zz_log_liste_taxon.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_zz_log_liste_taxon_et_infra.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	out.lib_log :=  'Liste de taxon exporté ';
 ELSE out.lib_log :=  'format ('||format||') non implémenté ou jdd ('||jdd||') mauvais';
 END CASE;
 PERFORM hub_log (libSchema, out);RETURN NEXT out;
@@ -570,7 +571,7 @@ WHEN files = '' THEN
 ELSE
 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
 	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier '||files||' remplacé'; ELSE out.lib_log := 'fichier '||files||' ajouté'; END CASE;
+	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier std_'||files||'.csv remplacé'; ELSE out.lib_log := 'fichier std_'||files||'.csv ajouté'; END CASE;
 END CASE;
 --- WHEN jdd <> 'data' AND jdd <> 'taxa' AND files <> '' THEN 
 --- 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; out.lib_log := 'Fichier remplacé'; ELSE out.lib_log := 'Fichier ajouté'; END CASE;
@@ -948,7 +949,7 @@ CASE WHEN (compte > 0) THEN
 		EXECUTE 'UPDATE '||destination||' a SET '||listeChamp||' FROM (SELECT * FROM '||source||') b WHERE '||jointure||';';
 		out.lib_table := tableSource; out.lib_log := 'Concept(s) modifié(s)'; out.nb_occurence := compte||' occurence(s)'; return next out; ---PERFORM hub_log (schemaSource, out);
 	WHEN typAction = 'diff' THEN
-		out.lib_log := 'Concept(s) à modifier'; out.nb_occurence := compte||' occurence(s)';return next out; ---PERFORM hub_log (schemaSource, out); 
+		out.lib_log := 'Différences : concept(s) à modifier'; out.nb_occurence := compte||' occurence(s)';return next out; ---PERFORM hub_log (schemaSource, out); 
 	WHEN typAction = 'diff_plus' THEN --- CaS utilisé pour analyser les différences en profondeur
 	FOR libChamp IN EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') GROUP BY cd_champ'
 		LOOP 
