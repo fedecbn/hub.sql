@@ -375,7 +375,8 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Exporter les données depuis un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn') RETURNS setof zz_log  AS 
+--- DROP FUNCTION hub_export(varchar,varchar,varchar,varchar)
+CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn',source varchar = null) RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE libTable varchar;
@@ -401,13 +402,13 @@ out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_lo
 --- Commandes
 CASE WHEN format = 'fcbn' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd '||typJdd||''
-		LOOP EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'" '||listJdd||') TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
+		LOOP EXECUTE 'COPY (SELECT * FROM  '||libSchema||'.'||source||libTable||' '||listJdd||') TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log :=  'Tous les jdd ont été exporté au format '||format;
 WHEN format = 'sinp' THEN
 	out.lib_log :=  'format SINP à implémenter';
 WHEN format = 'list_taxon' THEN
-	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_zz_log_liste_taxon.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
-	EXECUTE 'COPY (SELECT * FROM  "'||libSchema||'"."'||libTable||'") TO '''||path||'std_zz_log_liste_taxon_et_infra.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY (SELECT * FROM  '||libSchema||'.'||source||libTable||') TO '''||path||'std_zz_log_liste_taxon.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY (SELECT * FROM  '||libSchema||'.'||source||libTable||') TO '''||path||'std_zz_log_liste_taxon_et_infra.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	out.lib_log :=  'Liste de taxon exporté ';
 ELSE out.lib_log :=  'format ('||format||') non implémenté ou jdd ('||jdd||') mauvais';
 END CASE;
