@@ -249,6 +249,70 @@ END CASE;
 out.lib_schema := schema_lower;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (schema_lower, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_connect 
+--- Description :  Copie du Hub vers un serveur distant
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Mise à jour : à lancer à chaque mise à jour
+CREATE OR REPLACE FUNCTION hub_connect(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, action varchar, libSchema_from varchar, libSchema_to varchar, libRef varchar) RETURNS varchar  AS 
+$BODY$
+DECLARE connction varchar;
+DECLARE libTable varchar;
+DECLARE list_champ varchar;
+DECLARE listJdd varchar;
+BEGIN
+--- Variables
+connction = 'hostaddr='''||hote||''' port='''||port||''' dbname='''||dbname||''' user='''||utilisateur||''' password='''||mdp||'''';
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''''||jdd||'''';END CASE;
+
+--- Commande
+FOR libTable IN EXECUTE 'SELECT cd_table FROM '||libRef||'.fsd WHERE typ_jdd = '''||action||''' OR typ_jdd = ''meta'' GROUP BY cd_table' 
+	LOOP
+	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM '||libRef||'.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ;		
+	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * from dblink('''||connction||''', ''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'') as t1 ('||list_champ||');';
+END LOOP;
+
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_connect_ref
+--- Description :  Mise à jour du référentiel FSD depuis un serveur distant
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Mise à jour : à lancer à chaque mise à jour
+CREATE OR REPLACE FUNCTION hub_connect_ref(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, libSchema_from varchar, libSchema_to varchar) RETURNS varchar  AS 
+$BODY$
+DECLARE connction varchar;
+BEGIN
+--- Variables
+connction = 'hostaddr='''||hote||''' port='''||port||''' dbname='''||dbname||''' user='''||utilisateur||''' password='''||mdp||'''';
+
+--- Commande
+EXECUTE '
+DELETE FROM '||libSchema_to||'.fsd;
+INSERT INTO '||libSchema_to||'.fsd
+SELECT * FROM dblink('''||connction||''', ''SELECT * FROM '||libSchema_from||'.fsd'') as t1 (
+  uid serial,
+  typ_jdd character varying,
+  cd_ddd integer,
+  ordre_table integer,
+  cd_table character varying,
+  ordre_champ integer,
+  cd_champ character varying,
+  lib_champ character varying,
+  format character varying,
+  obligation character varying,
+  unicite character varying,
+  regle character varying
+  );
+';
+
+END;$BODY$ LANGUAGE plpgsql;
+
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
