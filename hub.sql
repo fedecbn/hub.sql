@@ -4,10 +4,51 @@
 --------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------
 
---- Création de la table générale de log et bilan
---- DROP TABLE public.zz_log CASCADE; -- NB : cette fonction supprime également toutes les fonctions = intéressant pour réinitialiser.
-CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
-CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_init
+--- Description : initialise les fonction du hub (supprime toutes les fonctions) et  initialise certaines tables (zz_log et bilan)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_init() RETURNS varchar  AS 
+$BODY$ 
+DECLARE fonction varchar;
+DECLARE schema varchar;
+DECLARE table varchar;
+DECLARE exist varchar;
+BEGIN 
+FOR fonction IN SELECT routine_name||'('||string_agg(data_type ,',')||')' FROM(
+	SELECT routine_name, z.specific_name, 
+		CASE WHEN z.data_type  = 'ARRAY' THEN z.udt_name||'[]' 
+		WHEN z.data_type  = 'USER-DEFINED' THEN z.udt_name 
+		ELSE z.data_type END as data_type
+	FROM information_schema.routines a
+	JOIN information_schema.parameters z ON a.specific_name = z.specific_name
+	WHERE  routine_name LIKE 'hub_%'
+	ORDER BY ordinal_position
+	) as one
+	GROUP BY routine_name, specific_name
+   LOOP
+   EXECUTE 'DROP FUNCTION '||fonction||';';
+   END LOOP;
+   
+--- Création de la table générale de log
+schema = 'public'; table = 'zz_log';
+EXECUTE 'SELECT CASE WHEN table_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.tables WHERE table_schema = '''||schema||''' AND table_name = '''||table||''';' INTO exist
+CASE WHEN exist = 'Non' THEN
+	CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
+ELSE END CASE;
+
+--- Création de la table générale de bilan
+schema = 'public'; table = 'bilan';
+EXECUTE 'SELECT CASE WHEN table_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.tables WHERE table_schema = '''||schema||''' AND table_name = '''||table||''';' INTO exist
+CASE WHEN exist = 'Non' THEN
+	CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
+ELSE END CASE;
+
+RETURN 'Initilsation OK';
+END;$BODY$ LANGUAGE plpgsql;
+SELECT * FROM hub_init();
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -16,7 +57,6 @@ CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Attention listJdd null sur jdd erroné
---- DROP FUNCTION hub_add(varchar,varchar, varchar, varchar, varchar,varchar, varchar);
 CREATE OR REPLACE FUNCTION hub_add(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar,jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
@@ -158,7 +198,6 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Création d'un hub complet
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_clone(varchar);
 CREATE OR REPLACE FUNCTION hub_clone(libSchema varchar, typ varchar = 'all') RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype; 
@@ -217,7 +256,6 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Suppression de données (fonction utilisée par une autre fonction)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_del(varchar,varchar, varchar, varchar, varchar, varchar, varchar)
 CREATE OR REPLACE FUNCTION hub_del(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype;
@@ -276,7 +314,6 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Analyse des différences entre une source et une cible
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_diff(varchar,varchar, varchar, integer);
 CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar,typAction varchar = 'add',mode integer = 1) RETURNS setof zz_log  AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
@@ -381,7 +418,6 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Exporter les données depuis un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_export(varchar,varchar,varchar,varchar)
 CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn',source varchar = null) RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -480,7 +516,6 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Production des identifiants uniques
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_idperm(varchar, varchar, varchar,varchar,boolean)
 CREATE OR REPLACE FUNCTION hub_idperm(libSchema varchar, nomDomaine varchar, champ_perm varchar, jdd varchar = 'all', rempla boolean = false) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -539,7 +574,6 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Importer des données (fichiers CSV) dans un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_import(varchar, varchar, varchar, varchar)
 CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, rempla boolean = false, files varchar = '') RETURNS setof zz_log AS 
 $BODY$
 DECLARE typJdd varchar;
@@ -650,7 +684,6 @@ END; $BODY$  LANGUAGE plpgsql;
 --- Description : Installe le hub en local (concataine la construction d'un hub et l'installation des référentiels)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_install(varchar,varchar)
 CREATE OR REPLACE FUNCTION hub_install (libSchema varchar, path varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -731,7 +764,6 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Mise à jour des données (on pousse les données)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_push(varchar,varchar, varchar, integer);
 CREATE OR REPLACE FUNCTION hub_push(libSchema varchar,jdd varchar, typAction varchar = 'replace', mode integer = 1) RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype; 
@@ -808,7 +840,6 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Création des référentiels
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_ref(varchar, varchar);
 CREATE OR REPLACE FUNCTION hub_ref(typAction varchar, path varchar = '/home/hub/00_ref/') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -886,7 +917,6 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Mise à jour de données (fonction utilisée par une autre fonction)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_update(varchar,varchar,varchar,varchar,varchar,varchar, varchar);
 CREATE OR REPLACE FUNCTION hub_update(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
 $BODY$  
 DECLARE out zz_log%rowtype; 
@@ -1142,7 +1172,6 @@ RETURN;END;$BODY$ LANGUAGE plpgsql;
 --- Description : Chainage des vérification
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_verif_all(varchar)
 CREATE OR REPLACE FUNCTION hub_verif_all(libSchema varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
@@ -1158,7 +1187,6 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : ecrit les output dans le Log du schema et le log global
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- DROP FUNCTION hub_log (varchar, zz_log);
 CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log, action varchar = 'write') RETURNS void AS 
 $BODY$ 
 BEGIN
