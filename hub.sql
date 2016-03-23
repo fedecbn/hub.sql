@@ -13,8 +13,8 @@
 CREATE OR REPLACE FUNCTION hub_init() RETURNS varchar  AS 
 $BODY$ 
 DECLARE fonction varchar;
-DECLARE schema varchar;
-DECLARE table varchar;
+DECLARE schem varchar;
+DECLARE tabl varchar;
 DECLARE exist varchar;
 BEGIN 
 FOR fonction IN SELECT routine_name||'('||string_agg(data_type ,',')||')' FROM(
@@ -33,15 +33,15 @@ FOR fonction IN SELECT routine_name||'('||string_agg(data_type ,',')||')' FROM(
    END LOOP;
    
 --- Création de la table générale de log
-schema = 'public'; table = 'zz_log';
-EXECUTE 'SELECT CASE WHEN table_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.tables WHERE table_schema = '''||schema||''' AND table_name = '''||table||''';' INTO exist
+schem = 'public'; tabl = 'zz_log';
+EXECUTE 'SELECT CASE WHEN table_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.tables WHERE table_schema = '''||schem||''' AND table_name = '''||tabl||''';' INTO exist;
 CASE WHEN exist = 'Non' THEN
 	CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 ELSE END CASE;
 
 --- Création de la table générale de bilan
-schema = 'public'; table = 'bilan';
-EXECUTE 'SELECT CASE WHEN table_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.tables WHERE table_schema = '''||schema||''' AND table_name = '''||table||''';' INTO exist
+schem = 'public'; tabl = 'bilan';
+EXECUTE 'SELECT CASE WHEN table_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.tables WHERE table_schema = '''||schem||''' AND table_name = '''||tabl||''';' INTO exist;
 CASE WHEN exist = 'Non' THEN
 	CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
 ELSE END CASE;
@@ -157,39 +157,68 @@ out.lib_log = 'bilan réalisé';
 PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
+
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_clear 
---- Description : Nettoyage des tables (partie temporaires ou propre)
+--- Description : Nettoyage simple des tables (partie temporaires ou propre)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_clear(libSchema varchar, jdd varchar, typPartie varchar = 'temp') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_clear(libSchema varchar, jdd varchar, partie varchar = 'temp') RETURNS setof zz_log  AS 
+$BODY$ BEGIN
+EXECUTE 'SELECT * FROM hub_clear_plus('''||libSchema||''','''||libSchema||''','''||jdd||''','''||partie||''','''||partie||''');';
+END; $BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_clear_plus 
+--- Description : Nettoyage complexe des tables (partie temporaires ou propre)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_clear_plus(fromlibSchema varchar, tolibSchema varchar, jdd varchar, fromPartie varchar = 'temp', toPartie varchar = 'temp') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE flag integer;
-DECLARE prefixe varchar;
+DECLARE fromprefixe varchar;
+DECLARE toprefixe varchar;
 DECLARE metasource varchar;
 DECLARE libTable varchar;
 DECLARE listJdd varchar;
+DECLARE typJdd varchar;
+DECLARE blabal varchar;
 BEGIN
 --- Variables 
-CASE WHEN typPartie = 'temp' THEN flag :=1; prefixe = 'temp_'; WHEN typPartie = 'propre' THEN flag :=1; prefixe = ''; ELSE flag :=0; END CASE;
-CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema||'"."'||prefixe||'metadonnees" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := ''''||jdd||'''';END CASE;
---- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
---- Commandes
-CASE WHEN flag = 1 AND listJdd <> '''vide''' THEN
-	FOR libTable in EXECUTE 'SELECT table_name FROM information_schema.tables WHERE table_schema = '''||libSchema||''' AND table_name NOT LIKE ''temp_%'' AND table_name NOT LIKE ''zz_%'';'
-		LOOP EXECUTE 'DELETE FROM "'||libSchema||'"."'||prefixe||libTable||'" WHERE cd_jdd IN ('||listJdd||');'; 
-		END LOOP;
-	---log---
-	out.lib_log = jdd||' effacé de la partie '||typPartie;
-WHEN listJdd = '''vide''' THEN out.lib_log = 'jdd vide '||jdd;
-ELSE out.lib_log = 'ERREUR : mauvais typPartie : '||typPartie;
+--- les jeux de données de référence à surpprimer
+CASE WHEN fromPartie = 'temp' THEN fromprefixe = 'temp_'; WHEN fromPartie = 'propre' THEN fromprefixe = ''; ELSE END CASE;
+--- Où les supprimer (permet de supprimer des jeu de données de la partie propre depuis la partie temporaire ==> intéressant pour l'agrégation).
+CASE WHEN toPartie = 'temp' THEN toprefixe = 'temp_'; WHEN toPartie = 'propre' THEN toprefixe = ''; ELSE END CASE;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM '||fromlibSchema||'.'||fromprefixe||'metadonnees WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+	typJdd := jdd;
+ELSE 
+	listJdd := ''''||jdd||'''';
+	EXECUTE 'SELECT typ_jdd FROM "'||fromlibSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
 END CASE;
 --- Output&Log
-PERFORM hub_log (libSchema, out);RETURN NEXT out;
+out.lib_schema := tolibSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear_plus';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+--- Commandes
+CASE WHEN listJdd <> 'vide' THEN
+	FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
+		LOOP 
+		EXECUTE 'DELETE FROM '||tolibSchema||'.'||toprefixe||libTable||' WHERE cd_jdd IN ('||listJdd||');'; 
+		END LOOP;
+	---log---
+	out.lib_log = jdd||' effacé de la partie '||toPartie;
+WHEN listJdd = '''vide''' THEN out.lib_log = 'jdd vide '||jdd;
+ELSE out.lib_log = 'ERREUR : mauvais typPartie : '||toPartie;
+END CASE;
+--- Output&Log
+CASE WHEN fromlibSchema <> tolibSchema THEN
+	PERFORM hub_log (fromlibSchema, out);RETURN NEXT out;
+	PERFORM hub_log (tolibSchema, out);RETURN NEXT out;
+ELSE
+	PERFORM hub_log (fromlibSchema, out);RETURN NEXT out;
+END CASE;
+
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -854,7 +883,7 @@ CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN m
 --- Commandes
 --- Remplacement total = hub_clear + hub_add
 CASE WHEN typAction = 'replace' THEN
-	CASE WHEN mode = 1 THEN SELECT * INTO out FROM hub_clear(schemaDest, jdd, 'propre'); WHEN mode = 2 THEN SELECT * INTO out FROM hub_clear(schemaDest, jdd, 'temp'); ELSE END CASE; return next out;
+	CASE WHEN mode = 1 THEN SELECT * INTO out FROM hub_clear_plus(schemaSource,schemaDest, jdd, 'temp', 'propre'); WHEN mode = 2 THEN SELECT * INTO out FROM hub_clear_plus(schemaSource,schemaDest, jdd, 'propre', 'temp'); ELSE END CASE; return next out;
 	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
 		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
