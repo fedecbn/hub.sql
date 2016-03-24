@@ -234,7 +234,6 @@ WHEN typAction = 'delete' THEN	--- Suppression
 WHEN typAction = 'create' THEN	--- Creation
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
 	CASE WHEN flag1 = 1 THEN out.lib_log := 'Schema ref déjà créés';RETURN next out;ELSE CREATE SCHEMA "ref"; out.lib_log := 'Schéma ref créés';RETURN next out;END CASE;
-	
 	--- Initialisation du meta-référentiel
 	CREATE TABLE IF NOT EXISTS ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
 	TRUNCATE ref.aa_meta;
@@ -620,33 +619,49 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description :  Mise à jour du référentiel FSD depuis un serveur distant
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect_ref(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar,ref varchar = 'fsd') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_connect_ref(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar,refPartie varchar = 'fsd') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
+DECLARE libTable varchar;
+DECLARE structure varchar;
+DECLARE bdlink_structure varchar;
 BEGIN
 --- Variables
 connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
+--- Log
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 
---- Commande
-EXECUTE '
-DELETE FROM ref.fsd;
-INSERT INTO ref.fsd
-SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.fsd'') as t1 (
-  uid integer,
-  typ_jdd character varying,
-  cd_ddd integer,
-  ordre_table integer,
-  cd_table character varying,
-  ordre_champ integer,
-  cd_champ character varying,
-  lib_champ character varying,
-  format character varying,
-  obligation character varying,
-  unicite character varying,
-  regle character varying
-  );
-';
+CASE WHEN refPartie = 'all' THEN
+	DROP SCHEMA ref CASCADE;
+	CREATE SCHEMA ref;
+	--- Initialisation du meta-référentiel
+	CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
+	EXECUTE 'INSERT INTO ref.aa_meta SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
+	--- Tables
+	FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref  ORDER BY nom_ref'
+		LOOP
+		EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')''
+			FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one
+			JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref
+			' INTO structure;
+		EXECUTE 'SELECT string_agg(libelle||'' ''||format,'','') as champs 
+			FROM (SELECT nom_ref, libelle,CASE WHEN format = ''serial NOT NULL'' OR format = ''serial'' THEN ''integer'' ELSE format END as format
+			FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'')AS one GROUP BY nom_ref
+			' INTO bdlink_structure;
+		EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
+			
+		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
+		out.lib_log := libTable||' : données importées';RETURN next out;
+		END LOOP;
+ELSE 
+	EXECUTE 'TRUNCATE ref.'||refPartie||';';
+	EXECUTE 'SELECT string_agg(libelle||'' ''||format,'','') as champs 
+		FROM (SELECT nom_ref, libelle,CASE WHEN format = ''serial NOT NULL'' OR format = ''serial'' THEN ''integer'' ELSE format END as format
+		FROM ref.aa_meta WHERE nom_ref = '''||refPartie||''' AND typ = ''champ'')AS one GROUP BY nom_ref
+		' INTO bdlink_structure;
+	EXECUTE 'INSERT INTO ref.'||refPartie||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||refPartie||''') as t1 ('||bdlink_structure||');';
+END CASE;
 
 --- Output&Log
 out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
