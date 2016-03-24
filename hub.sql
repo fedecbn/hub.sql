@@ -590,27 +590,29 @@ DECLARE libTable varchar;
 DECLARE list_champ varchar;
 DECLARE listJdd varchar;
 DECLARE typJdd varchar;
+DECLARE isvid varchar;
 BEGIN
 --- Variables
 connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
 
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
-   EXECUTE 'SELECT * from dblink('''||connction||''',SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''||jdd||''') as t1 (listJdd varchar);' INTO listJdd;
+   EXECUTE 'SELECT * from dblink('''||connction||''', ''SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||''''''') as t1 (listJdd varchar);' INTO listJdd;
    typJdd = jdd;
 ELSE 
    listJdd := ''''||jdd||'''';
-   EXECUTE 'SELECT * from dblink('''||connction||''',SELECT CASE WHEN typ_jdd IS NULL THEN ''vide'' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''||jdd||''') as t1 (typJdd varchar);' INTO typJdd;
+   EXECUTE 'SELECT * from dblink('''||connction||''', ''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''||jdd||''''') as t1 (typJdd varchar);' INTO typJdd;
 END CASE;
 
 --- Commande
 FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' 
 	LOOP
-	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;		
+	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE (typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'') AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;		
 	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * from dblink('''||connction||''', ''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'') as t1 ('||list_champ||');';
 END LOOP;
 
 --- Output&Log
-out.lib_log := jdd||' importé';out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema_to, out);RETURN next out;
+out.lib_log := jdd||' importé';out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+PERFORM hub_log (libSchema_to, out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
