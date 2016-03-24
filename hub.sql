@@ -46,6 +46,7 @@ CREATE OR REPLACE FUNCTION hub_admin_init() RETURNS void  AS
 $BODY$ 
 DECLARE cmd varchar;
 DECLARE fonction varchar;
+DECLARE listFunction varchar[];
 DECLARE schem varchar;
 DECLARE tabl varchar;
 DECLARE exist varchar;
@@ -70,6 +71,13 @@ FOR fonction IN EXECUTE cmd
    LOOP   EXECUTE 'DROP FUNCTION '||fonction||';';
    END LOOP;
 
+-- Fonctions utilisées par le hub
+listFunction = ARRAY['dblink','uuid-ossp','postgis'];
+FOREACH fonction IN ARRAY listFunction LOOP
+	EXECUTE 'SELECT extname from pg_extension WHERE extname = '''||fonction||''';' INTO exist;
+	CASE WHEN exist IS NULL THEN EXECUTE 'CREATE EXTENSION '||fonction||';';
+	ELSE END CASE;
+END LOOP;
 END;$BODY$ LANGUAGE plpgsql;
 
 --- Lancé à chaque fois pour réinitialier les fonctions
@@ -161,6 +169,28 @@ END CASE;
 --- Output&Log
 out.lib_schema := schema_lower;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (schema_lower, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_drop
+--- Description : Supprimer un hub dans sa totalité (ATTENTION, NON REVERSIBLE)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_drop(libSchema varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE flag integer;
+BEGIN
+--- Commandes
+EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = '''||libSchema||''';' INTO flag;
+CASE flag WHEN 1 THEN
+	EXECUTE 'DROP SCHEMA IF EXISTS "'||libSchema||'" CASCADE;';
+	out.lib_log := 'Schema '||libSchema||' supprimé';
+ELSE out.lib_log := 'Schema '||libSchema||' inexistant pas dans le Hub';
+END CASE;
+--- Output&Log
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -263,12 +293,12 @@ EXECUTE '
 	GRANT USAGE ON SCHEMA "ref" TO "'||utilisateur||'";GRANT SELECT ON ALL TABLES IN SCHEMA "ref" TO "'||utilisateur||'";	
 ';
 
-schem = 'public';
-EXECUTE 'SELECT CASE WHEN schema_name IS NULL THEN ''Non'' ELSE ''Oui'' END FROM information_schema.shemata WHERE schema_name = '''||schem||''';' INTO exist;
-CASE WHEN exist = 'Oui' THEN
+schem = 'agregation';
+EXECUTE 'SELECT schema_name FROM information_schema.schemata WHERE schema_name = '''||schem||''';' INTO exist;
+CASE WHEN exist IS NOT NULL THEN
 	EXECUTE '
-		GRANT USAGE ON SCHEMA "agregation" TO "'||utilisateur||'";
-		GRANT SELECT ON ALL TABLES IN SCHEMA "agregation" TO "'||utilisateur||'";
+		GRANT USAGE ON SCHEMA '||schem||' TO "'||utilisateur||'";
+		GRANT SELECT ON ALL TABLES IN SCHEMA '||schem||' TO "'||utilisateur||'";
 		';
 	ELSE END CASE;
 
@@ -350,36 +380,18 @@ EXECUTE '
 	INSERT INTO '||sch_to||'.zz_log_liste_taxon_et_infra SELECT * FROM '||sch_from||'.zz_log_liste_taxon_et_infra;
 	';
 
+--- Ajouter une partie pour remettre les droits nécessaires ==> information_schema.column_privileges
+
 EXECUTE '
 DROP SCHEMA '||sch_from||' CASCADE;
 ALTER SCHEMA '||sch_to||' RENAME TO '||sch_from||';
 ';
 
+
+
 --- Output&Log
 out.lib_log := 'Refresh OK';out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_drop 
---- Description : Supprimer un hub dans sa totalité (ATTENTION, NON REVERSIBLE)
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_drop(libSchema varchar) RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-DECLARE flag integer;
-BEGIN
---- Commandes
-EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = '''||libSchema||''';' INTO flag;
-CASE flag WHEN 1 THEN
-	EXECUTE 'DROP SCHEMA IF EXISTS "'||libSchema||'" CASCADE;';
-	out.lib_log := 'Schema '||libSchema||' supprimé';
-ELSE out.lib_log := 'Schema '||libSchema||' inexistant pas dans le Hub';
-END CASE;
---- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
-END;$BODY$ LANGUAGE plpgsql;
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -563,8 +575,9 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description :  Copie du Hub vers un serveur distant
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, jdd varchar, libSchema_from varchar, libSchema_to varchar) RETURNS varchar  AS 
+CREATE OR REPLACE FUNCTION hub_connect(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, jdd varchar, libSchema_from varchar, libSchema_to varchar) RETURNS setof zz_log  AS 
 $BODY$
+DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
 DECLARE libTable varchar;
 DECLARE list_champ varchar;
@@ -572,13 +585,14 @@ DECLARE listJdd varchar;
 DECLARE typJdd varchar;
 BEGIN
 --- Variables
-connction = 'hostaddr='''||hote||''' port='''||port||''' dbname='''||dbname||''' user='''||utilisateur||''' password='''||mdp||'''';
+connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
+
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
-   EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'".metadonnees WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+   EXECUTE 'SELECT * from dblink('''||connction||''',SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''||jdd||''') as t1 (listJdd varchar);' INTO listJdd;
    typJdd = jdd;
 ELSE 
    listJdd := ''''||jdd||'''';
-   EXECUTE 'SELECT CASE WHEN typ_jdd IS NULL THEN ''vide'' ELSE typ_jdd END FROM "'||schemaSource||'".metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+   EXECUTE 'SELECT * from dblink('''||connction||''',SELECT CASE WHEN typ_jdd IS NULL THEN ''vide'' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''||jdd||''') as t1 (typJdd varchar);' INTO typJdd;
 END CASE;
 
 --- Commande
@@ -588,6 +602,8 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJd
 	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * from dblink('''||connction||''', ''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'') as t1 ('||list_champ||');';
 END LOOP;
 
+--- Output&Log
+out.lib_log := jdd||' importé';out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema_to, out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -596,19 +612,20 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description :  Mise à jour du référentiel FSD depuis un serveur distant
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect_ref(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, libSchema_from varchar, libSchema_to varchar) RETURNS varchar  AS 
+CREATE OR REPLACE FUNCTION hub_connect_ref(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar,ref varchar = 'fsd') RETURNS setof zz_log  AS 
 $BODY$
+DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
 BEGIN
 --- Variables
-connction = 'hostaddr='''||hote||''' port='''||port||''' dbname='''||dbname||''' user='''||utilisateur||''' password='''||mdp||'''';
+connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
 
 --- Commande
 EXECUTE '
-DELETE FROM '||libSchema_to||'.fsd;
-INSERT INTO '||libSchema_to||'.fsd
-SELECT * FROM dblink('''||connction||''', ''SELECT * FROM '||libSchema_from||'.fsd'') as t1 (
-  uid serial,
+DELETE FROM ref.fsd;
+INSERT INTO ref.fsd
+SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.fsd'') as t1 (
+  uid integer,
   typ_jdd character varying,
   cd_ddd integer,
   ordre_table integer,
@@ -623,6 +640,8 @@ SELECT * FROM dblink('''||connction||''', ''SELECT * FROM '||libSchema_from||'.f
   );
 ';
 
+--- Output&Log
+out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 
