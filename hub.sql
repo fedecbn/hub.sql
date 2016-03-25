@@ -25,7 +25,7 @@
 --- SELECT * FROM hub_push('hub','taxa');
 
 --- 6. Envoyer les données sur le hub national (ex : TAXA)
---- SELECT * FROM hub_connect('94.23.218.10', '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
+--- SELECT * FROM hub_connect([adresse_ip], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
 
 
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
