@@ -296,7 +296,7 @@ EXECUTE '
 	GRANT CONNECT ON DATABASE '||db_nam||' TO "'||utilisateur||'" ;
 	
 	--- Droit sur le schema public et le schema ref
-	GRANT USAGE ON SCHEMA "public" TO "'||utilisateur||'";GRANT SELECT ON ALL TABLES IN SCHEMA "public" TO "'||utilisateur||'";
+	GRANT USAGE ON SCHEMA "public" TO "'||utilisateur||'";GRANT SELECT,INSERT ON ALL TABLES IN SCHEMA "public" TO "'||utilisateur||'";
 	GRANT USAGE ON SCHEMA "ref" TO "'||utilisateur||'";GRANT SELECT ON ALL TABLES IN SCHEMA "ref" TO "'||utilisateur||'";	
 ';
 
