@@ -1060,11 +1060,12 @@ FOR i in EXECUTE 'select cd_ref from "'||libSchema||'".zz_log_liste_taxon'
 		(WITH RECURSIVE hierarchie(cd_nom,nom_complet, cd_taxsup, rang) AS (
 		SELECT cd_nom, nom_complet, cd_taxsup, rang
 		FROM ref.taxref_v5 t1
-		WHERE t1.cd_nom = '''||i||'''
+		WHERE t1.cd_nom = '''||i||''' AND t1.cd_nom = t1.cd_ref
 		UNION
 		SELECT t2.cd_nom, t2.nom_complet, t2.cd_taxsup, t2.rang
 		FROM ref.taxref_v5 t2
 		JOIN hierarchie h ON t2.cd_taxsup = h.cd_nom
+		WHERE t2.cd_nom = t2.cd_ref
 		) SELECT * FROM hierarchie) as foo';
 	end loop;
 EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set nom_valide_demande = nom_valide from "'||libSchema||'".zz_log_liste_taxon where zz_log_liste_taxon_et_infra.cd_ref_demande= zz_log_liste_taxon.cd_ref ' ;
