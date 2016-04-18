@@ -198,7 +198,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Création des référentiels
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_ref(typAction varchar, path varchar = '/home/hub/00_ref/') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_admin_ref(typAction varchar, path varchar = '/home/hub/00_ref/', version varchar = '3.2') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE flag1 integer;
@@ -269,6 +269,42 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
 		END CASE;
 	END LOOP;
+
+WHEN typAction = 'export_xml' THEN	--- Mise à jour
+	--- Tables
+	FOR libTable IN SELECT distinct cd_table FROM ref.fsd
+	LOOP
+	--- Partie temp
+	EXECUTE 'COPY (SELECT
+	''<?xml version="1.0" encoding="UTF-8"?><schema dbmsId="postgres_id">''||string_agg("XML",'''')||''</schema>'' FROM
+	(
+	SELECT xmlelement(name column, 
+		xmlattributes('''' as "comment",'''' as "default",cd_champ as "label",255 as "length",cd_champ as "originalDbColumnName",'''' as "pattern",0 as "precision",
+			false as "key",
+			true as "nullable",
+			''id_String'' as "talendType",
+			''VARCHAR'' as "type")
+	)::varchar as "XML"
+	FROM ref.fsd a WHERE cd_table = '''||libTable||''' ORDER BY ordre_champ) as one)
+	TO '''||path||'st_talend_temp_'||libTable||'_'||version||'.xml'' ENCODING ''UTF8'';';
+
+	--- Partie propre
+	EXECUTE 'COPY (SELECT
+	''<?xml version="1.0" encoding="UTF-8"?><schema dbmsId="postgres_id">''||string_agg("XML",'''')||''</schema>'' FROM
+	(
+	SELECT xmlelement(name column, 
+		xmlattributes('''' as "comment",'''' as "default",cd_champ as "label",255 as "length",cd_champ as "originalDbColumnName",'''' as "pattern",0 as "precision",
+			CASE unicite WHEN ''Oui'' THEN true ELSE false END as "key",
+			CASE unicite WHEN ''Oui'' THEN false ELSE true END as "nullable",
+			CASE format WHEN  ''character varying'' THEN ''id_String'' WHEN ''float'' THEN ''id_Float'' WHEN ''date'' THEN ''id_Date'' WHEN ''integer'' THEN ''id_Integer'' WHEN ''boolean'' THEN ''id_Boolean'' ELSE format END as "talendType",
+			CASE format WHEN  ''character varying'' THEN ''VARCHAR'' WHEN ''float'' THEN ''FLOAT8'' WHEN ''date'' THEN ''DATE'' WHEN ''integer'' THEN ''INT4'' WHEN ''boolean'' THEN ''BOOL'' ELSE format END as "type")
+	)::varchar as "XML"
+	FROM ref.fsd a WHERE cd_table = '''||libTable||''' ORDER BY ordre_champ) as one)
+	TO '''||path||'/st_talend_'||libTable||'_'||version||'.xml'' ENCODING ''UTF8'';';
+	out.lib_log := 'st_talend_'||libTable||'_'||version||'.xml exporté';RETURN next out;
+	END LOOP;
+
+
 ELSE out.lib_log := 'Action non reconnue';RETURN next out;
 END CASE;
 
