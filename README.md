@@ -1,5 +1,5 @@
 ﻿# Hub
-Hub contient un script pl/pgsql permettant de gerer un hub CBN. 
+hub.sql contient un script pl/pgsql permettant de construire et manipuler une hub. 
 Celui-ci permet de construire, importer, vérifier, exporter des données dans une base de données Postgresql dans le Format Standard de Données du réseau.
 
 # Installation
