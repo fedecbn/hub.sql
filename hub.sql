@@ -318,42 +318,39 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Ajouter un utilisateur et lui donne les droits nécessaires
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_useradd(utilisateur varchar, mdp varchar, schma varchar = null) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_admin_useradd(utilisateur varchar, mdp varchar, schma varchar = null, role varchar = 'lecteur') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 declare db_nam varchar;
 declare exist varchar;
 declare listSchem varchar;
-declare schem varchar;
 BEGIN
 SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
 EXECUTE '
 	CREATE USER "'||utilisateur||'" PASSWORD '''||mdp||''';
 	GRANT CONNECT ON DATABASE '||db_nam||' TO "'||utilisateur||'" ;
-	
-	--- Droit sur le schema public et le schema ref
-	GRANT USAGE ON SCHEMA "public" TO "'||utilisateur||'";GRANT SELECT,INSERT ON ALL TABLES IN SCHEMA "public" TO "'||utilisateur||'";
-	GRANT USAGE ON SCHEMA "ref" TO "'||utilisateur||'";GRANT SELECT ON ALL TABLES IN SCHEMA "ref" TO "'||utilisateur||'";	
 ';
 
-schem = 'agregation';
-EXECUTE 'SELECT schema_name FROM information_schema.schemata WHERE schema_name = '''||schem||''';' INTO exist;
-CASE WHEN exist IS NOT NULL THEN
+--- Tables hub
+FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema <> 'pg_catalog' AND table_schema <> 'information_schema'
+	LOOP
+		EXECUTE 'GRANT USAGE ON SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+		CASE WHEN listSchem = schma AND role = 'gestionnaire' THEN
+			EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+		ELSE EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+		END CASE;
+	END LOOP;
+
+--- Tables zz_log
+EXECUTE 'SELECT schema_name FROM information_schema.schemata WHERE schema_name = '''||schma||''';' INTO exist;
+CASE WHEN exist IS NOT NULL AND role = 'lecteur' THEN
 	EXECUTE '
-		GRANT USAGE ON SCHEMA '||schem||' TO "'||utilisateur||'";
-		GRANT SELECT ON ALL TABLES IN SCHEMA '||schem||' TO "'||utilisateur||'";
+		GRANT INSERT ON TABLE '||schma||'.zz_log TO "'||utilisateur||'";
+		GRANT INSERT,DELETE ON TABLE '||schma||'.zz_log_liste_taxon TO "'||utilisateur||'";
+		GRANT INSERT,DELETE ON TABLE '||schma||'.zz_log_liste_taxon_et_infra TO "'||utilisateur||'";
 		';
 	ELSE END CASE;
 
-
-FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema <> 'ref' AND table_schema <> 'agregation' AND table_schema <> 'public' AND table_schema <> 'pg_catalog' AND table_schema <> 'information_schema'
-	LOOP
-		EXECUTE 'GRANT USAGE ON SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-		IF listSchem = schma
-			THEN EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-			ELSE EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-		END IF;
-	END LOOP;
 out.lib_log := utilisateur||' ajouté';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
