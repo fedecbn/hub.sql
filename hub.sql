@@ -668,7 +668,7 @@ connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||uti
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 
 CASE WHEN refPartie = 'all' THEN
-	DROP SCHEMA ref CASCADE;
+	DROP SCHEMA IF EXISTS ref CASCADE;
 	CREATE SCHEMA ref;
 	--- Initialisation du meta-référentiel
 	CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
