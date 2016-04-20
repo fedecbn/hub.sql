@@ -63,7 +63,7 @@ cmd = 'SELECT routine_name||''(''||string_agg(data_type ,'','')||'')'' FROM(
 	FROM information_schema.routines a
 	JOIN information_schema.parameters z ON a.specific_name = z.specific_name
 	WHERE  routine_name LIKE ''hub_%''
-	ORDER BY ordinal_position
+	ORDER BY routine_name,ordinal_position
 	) as one
 	GROUP BY routine_name, specific_name';
 --- Suppression de ces fonctions
@@ -75,7 +75,7 @@ FOR fonction IN EXECUTE cmd
 listFunction = ARRAY['dblink','uuid-ossp','postgis'];
 FOREACH fonction IN ARRAY listFunction LOOP
 	EXECUTE 'SELECT extname from pg_extension WHERE extname = '''||fonction||''';' INTO exist;
-	CASE WHEN exist IS NULL THEN EXECUTE 'CREATE EXTENSION '||fonction||';';
+	CASE WHEN exist IS NULL THEN EXECUTE 'CREATE EXTENSION "'||fonction||'";';
 	ELSE END CASE;
 END LOOP;
 END;$BODY$ LANGUAGE plpgsql;
