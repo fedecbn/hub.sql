@@ -849,7 +849,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Exporter les données depuis un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn',source varchar = null) RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_export(libSchema varchar,jdd varchar,path varchar,format varchar = 'fcbn',source varchar = '') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE libTable varchar;
