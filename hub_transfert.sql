@@ -46,80 +46,80 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT 
-			''xxx'' 													as cd_jdd_perm,
-			''xxx'' 													as cd_jdd,
-			''xxx'' 													as typ_jdd,
-			''xxx'' 													as lib_jdd,
-			''xxx'' 													as desc_jdd,
-			''xxx'' 													as date_publication,
-			''xxx'' 													as rmq,
+			''xxx'' 					as cd_jdd_perm,
+			''xxx'' 					as cd_jdd,
+			''xxx'' 					as typ_jdd,
+			''xxx'' 					as lib_jdd,
+			''xxx'' 					as desc_jdd,
+			''xxx'' 					as date_publication,
+			''xxx'' 					as rmq,
 			;';
 		WHEN 'metadonnees_acteur' THEN
 			transferer = 'non';
 			commande = '
 			SELECT 
-			''xxx'' 													as cd_jdd_perm,
-			''xxx'' 													as cd_jdd,
-			''xxx'' 													as typ_acteur,
-			''xxx'' 													as nmo_acteur,
-			''xxx'' 													as lib_orgm,
-			''xxx'' 													as mail_acteur,
-			null 														as cd_acteur,
-			null 														as cd_orgm,
-			''xxx'' 													as rmq,
+			''xxx'' 					as cd_jdd_perm,
+			''xxx'' 					as cd_jdd,
+			''xxx'' 					as typ_acteur,
+			''xxx'' 					as nmo_acteur,
+			''xxx'' 					as lib_orgm,
+			''xxx'' 					as mail_acteur,
+			null 						as cd_acteur,
+			null 						as cd_orgm,
+			''xxx'' 					as rmq,
 			;';
 		WHEN 'metadonnees_territoire' THEN
 			transferer = 'non';
 			commande = '
 			SELECT 
-			''xxx'' 													as cd_jdd_perm,
-			''xxx'' 													as cd_jdd,
-			''xxx'' 													as typ_geo,
-			''xxx'' 													as cd_geo,
-			''xxx'' 													as cd_refgeo,
-			''xxx'' 													as version_refgeo,
-			''xxx'' 													as rmq,
+			''xxx'' 					as cd_jdd_perm,
+			''xxx'' 					as cd_jdd,
+			''xxx'' 					as typ_geo,
+			''xxx'' 					as cd_geo,
+			''xxx'' 					as cd_refgeo,
+			''xxx'' 					as version_refgeo,
+			''xxx'' 					as rmq,
 			;';
 		WHEN 'observation' THEN
 			transferer = 'non';
 			commande = '
 			SELECT 
-			xxx 														as cd_jdd,
-			xxx 														as cd_jdd_perm,
-			xxx															as cd_releve,
-			xxx 														as cd_releve_perm,
-			xxx			 												as cd_obs_mere,
-			xxx					 										as cd_obs_perm,
-			xxx 														as typ_ent,
-			xxx			  												as cd_ent_mere,
-			xxx															as nom_ent_mere,
-			xxx		 													as cd_nom, 
-			xxx		 													as cd_ref, 
-			xxx		 													as cd_reftaxo, 
-			xxx 														as version_reftaxo, 
-			xxx		 													as nom_ent_ref, 
-			xxx 														as cd_obs_orig, 
-			xxx 														as cd_ent_orig,
-			xxx 														as nom_ent_orig, 
-			xxx		 													as cd_jdd_orig, 
-			xxx		 													as lib_jdd_orig, 
-			xxx				 											as typ_source, 
-			xxx		 													as cd_biblio,
-			xxx		 													as lib_biblio, 
-			xxx 														as url_biblio, 
-			xxx		 													as cd_herbier, 
-			xxx		 													as lib_herbier, 
-			xxx 														as cd_validite,  
-			xxx 														as cd_sensi, 
-			xxx									 						as lib_refsensi, 
-			xxx 														as version_refsensi, 
-			xxx 														as propriete_obs, 
-			xxx		 													as statut_pop,  
-			xxx 														as typ_denombt, 
-			xxx 														as denombt_min, 
-			xxx 														as denombt_max, 
-			xxx 														as objet_denombt, 
-			xxx		 													as rmq
+			xxx 						as cd_jdd,
+			xxx 						as cd_jdd_perm,
+			xxx							as cd_releve,
+			xxx 						as cd_releve_perm,
+			xxx							as cd_obs_mere,
+			xxx							as cd_obs_perm,
+			xxx 						as typ_ent,
+			xxx							as cd_ent_mere,
+			xxx							as nom_ent_mere,
+			xxx		 					as cd_nom, 
+			xxx		 					as cd_ref, 
+			xxx		 					as cd_reftaxo, 
+			xxx 						as version_reftaxo, 
+			xxx		 					as nom_ent_ref, 
+			xxx 						as cd_obs_orig, 
+			xxx 						as cd_ent_orig,
+			xxx 						as nom_ent_orig, 
+			xxx		 					as cd_jdd_orig, 
+			xxx		 					as lib_jdd_orig, 
+			xxx							as typ_source, 
+			xxx		 					as cd_biblio,
+			xxx		 					as lib_biblio, 
+			xxx 						as url_biblio, 
+			xxx		 					as cd_herbier, 
+			xxx		 					as lib_herbier, 
+			xxx 						as cd_validite,  
+			xxx 						as cd_sensi, 
+			xxx							as lib_refsensi, 
+			xxx 						as version_refsensi, 
+			xxx 						as propriete_obs, 
+			xxx		 					as statut_pop,  
+			xxx 						as typ_denombt, 
+			xxx 						as denombt_min, 
+			xxx 						as denombt_max, 
+			xxx 						as objet_denombt, 
+			xxx		 					as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -127,15 +127,15 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT 
-			xxx  														as cd_jdd,
-			xxx		 													as cd_releve,
-			xxx			 												as cd_releve_perm,
-			xxx		 													as date_debut,
-			xxx															as date_fin,
-			xxx															as nature_date,
-			xxx		 													as meth_releve,
-			xxx															as typ_protocole,
-			xxx		 													as rmq
+			xxx  						as cd_jdd,
+			xxx		 					as cd_releve,
+			xxx							as cd_releve_perm,
+			xxx		 					as date_debut,
+			xxx							as date_fin,
+			xxx							as nature_date,
+			xxx		 					as meth_releve,
+			xxx							as typ_protocole,
+			xxx		 					as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -143,16 +143,16 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT 
-			xxx  														as cd_jdd,
-			xxx 														as cd_releve,
-			xxx			 												as cd_releve_perm,
-			xxx															as typ_acteur, 
-			xxx						 									as nom_acteur, 
-			xxx		 													as lib_orgm,
-			xxx 														as mail_acteur,
-			xxx 														as cd_acteur, 
-			xxx 														as cd_orgm,
-			xxx 														as rmq
+			xxx  						as cd_jdd,
+			xxx 						as cd_releve,
+			xxx							as cd_releve_perm,
+			xxx							as typ_acteur, 
+			xxx							as nom_acteur, 
+			xxx		 					as lib_orgm,
+			xxx 						as mail_acteur,
+			xxx 						as cd_acteur, 
+			xxx 						as cd_orgm,
+			xxx 						as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -160,20 +160,20 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT 
-			xxx		  													as cd_jdd,
-			xxx		 													as cd_releve,
-			xxx			 												as cd_releve_perm,
-			xxx		 													as typ_geo,
-			xxx			 												as cd_refgeo,
-			xxx		 													as version_refgeo,
-			xxx		 													as cd_geo,
-			xxx		 													as lib_geo,
-			xxx 														as confiance_geo,
-			xxx 														as moyen_geo,
-			xxx 														as nature_geo,
-			xxx		 													as origine_geo,
-			xxx 														as precision_geo,
-			xxx 														as rmq
+			xxx		  					as cd_jdd,
+			xxx		 					as cd_releve,
+			xxx							as cd_releve_perm,
+			xxx		 					as typ_geo,
+			xxx							as cd_refgeo,
+			xxx		 					as version_refgeo,
+			xxx		 					as cd_geo,
+			xxx		 					as lib_geo,
+			xxx 						as confiance_geo,
+			xxx 						as moyen_geo,
+			xxx 						as nature_geo,
+			xxx		 					as origine_geo,
+			xxx 						as precision_geo,
+			xxx 						as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -181,20 +181,20 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT
-			xxx															as cd_jdd_perm
-			xxx															as cd_jdd
-			xxx															as cd_ent_perm
-			xxx															as cd_ent_mere
-			xxx															as typ_ent
-			xxx															as nom_ent_mere
-			xxx															as cd_rang
-			xxx															as cd_sup
-			xxx															as famille
-			xxx															as ordre
-			xxx															as classe
-			xxx															as phylum
-			xxx															as regne
-			xxx															as rmq
+			xxx							as cd_jdd_perm
+			xxx							as cd_jdd
+			xxx							as cd_ent_perm
+			xxx							as cd_ent_mere
+			xxx							as typ_ent
+			xxx							as nom_ent_mere
+			xxx							as cd_rang
+			xxx							as cd_sup
+			xxx							as famille
+			xxx							as ordre
+			xxx							as classe
+			xxx							as phylum
+			xxx							as regne
+			xxx							as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -202,14 +202,14 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT
-			xxx															as cd_jdd
-			xxx															as cd_ent_perm
-			xxx															as cd_ent_mere
-			xxx															as typ_biblio
-			xxx															as cd_biblio
-			xxx															as lib_biblio
-			xxx															as url_biblio
-			xxx															as rmq
+			xxx							as cd_jdd
+			xxx							as cd_ent_perm
+			xxx							as cd_ent_mere
+			xxx							as typ_biblio
+			xxx							as cd_biblio
+			xxx							as lib_biblio
+			xxx							as url_biblio
+			xxx							as rmq
 
 			FROM xxx
 			WHERE xxx
@@ -218,15 +218,15 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT
-			xxx															as cd_jdd
-			xxx															as cd_ent_perm
-			xxx															as cd_ent_mere
-			xxx															as cd_nom
-			xxx															as cd_ref
-			xxx															as nom_ent_ref
-			xxx															as cd_reftaxo
-			xxx															as version_reftaxo
-			xxx															as rmq
+			xxx							as cd_jdd
+			xxx							as cd_ent_perm
+			xxx							as cd_ent_mere
+			xxx							as cd_nom
+			xxx							as cd_ref
+			xxx							as nom_ent_ref
+			xxx							as cd_reftaxo
+			xxx							as version_reftaxo
+			xxx							as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -234,22 +234,22 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT
-			xxx															as cd_jdd
-			xxx															as cd_ent_perm
-			xxx															as cd_ent_mere
-			xxx															as typ_statut
-			xxx															as cd_statut
-			xxx															as critere_statut
-			xxx															as meth_statut
-			xxx															as annee_statut
-			xxx															as metrique_statut
-			xxx															as valeur_statut
-			xxx															as typ_geo
-			xxx															as cd_geo
-			xxx															as cd_refgeo
-			xxx															as version_refgeo
-			xxx															as lib_geo
-			xxx															as rmq
+			xxx							as cd_jdd
+			xxx							as cd_ent_perm
+			xxx							as cd_ent_mere
+			xxx							as typ_statut
+			xxx							as cd_statut
+			xxx							as critere_statut
+			xxx							as meth_statut
+			xxx							as annee_statut
+			xxx							as metrique_statut
+			xxx							as valeur_statut
+			xxx							as typ_geo
+			xxx							as cd_geo
+			xxx							as cd_refgeo
+			xxx							as version_refgeo
+			xxx							as lib_geo
+			xxx							as rmq
 			FROM xxx
 			WHERE xxx
 			;';
@@ -257,11 +257,11 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			transferer = 'non';
 			commande = '
 			SELECT
-			xxx															as cd_jdd
-			xxx															as cd_ent_perm
-			xxx															as cd_ent_mere
-			xxx															as nom_ent_verna
-			xxx															as rmq
+			xxx							as cd_jdd
+			xxx							as cd_ent_perm
+			xxx							as cd_ent_mere
+			xxx							as nom_ent_verna
+			xxx							as rmq
 			FROM xxx
 			WHERE xxx
 			;';
