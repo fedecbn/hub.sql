@@ -52,7 +52,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			''xxx'' 					as lib_jdd,
 			''xxx'' 					as desc_jdd,
 			''xxx'' 					as date_publication,
-			''xxx'' 					as rmq,
+			''xxx'' 					as rmq
 			;';
 		WHEN 'metadonnees_acteur' THEN
 			transferer = 'non';
@@ -66,7 +66,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			''xxx'' 					as mail_acteur,
 			null 						as cd_acteur,
 			null 						as cd_orgm,
-			''xxx'' 					as rmq,
+			''xxx'' 					as rmq
 			;';
 		WHEN 'metadonnees_territoire' THEN
 			transferer = 'non';
@@ -78,7 +78,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 			''xxx'' 					as cd_geo,
 			''xxx'' 					as cd_refgeo,
 			''xxx'' 					as version_refgeo,
-			''xxx'' 					as rmq,
+			''xxx'' 					as rmq
 			;';
 		WHEN 'observation' THEN
 			transferer = 'non';
