@@ -272,7 +272,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd GROUP BY cd_table;' LOOP
 
 --- Lancement des commandes -----------------------------------------------------------		
 	CASE WHEN (commande IS NOT null AND transferer = 'oui') THEN 
-		EXECUTE 'DELETE FROM '||libSchema||'.temp_'||libTable||';';
+		EXECUTE 'TRUNCATE '||libSchema||'.temp_'||libTable||';';
 		CASE WHEN connexion IS NOT NULL	THEN -- cas d'utilisation d'une autre base de données pour renseigner l'information.
 			/*liste des champs pour construire la requête*/
 			EXECUTE 'SELECT string_agg(chp.cd_champ,'','') FROM (SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' ORDER BY ordre_champ) as chp;' INTO listChamp;
