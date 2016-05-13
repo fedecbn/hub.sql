@@ -658,6 +658,7 @@ CREATE OR REPLACE FUNCTION hub_connect_ref(hote varchar, port varchar,dbname var
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
+DECLARE flag integer;
 DECLARE libTable varchar;
 DECLARE structure varchar;
 DECLARE bdlink_structure varchar;
@@ -667,36 +668,41 @@ connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||uti
 --- Log
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 
-CASE WHEN refPartie = 'all' THEN
-	DROP SCHEMA IF EXISTS ref CASCADE;
-	CREATE SCHEMA ref;
-	--- Initialisation du meta-référentiel
-	CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
-	EXECUTE 'INSERT INTO ref.aa_meta SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
-	--- Tables
-	FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref  ORDER BY nom_ref'
-		LOOP
-		EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')''
-			FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one
-			JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref
-			' INTO structure;
-		EXECUTE 'SELECT string_agg(libelle||'' ''||format,'','') as champs 
-			FROM (SELECT nom_ref, libelle,CASE WHEN format = ''serial NOT NULL'' OR format = ''serial'' THEN ''integer'' ELSE format END as format
-			FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'')AS one GROUP BY nom_ref
-			' INTO bdlink_structure;
-		EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
-			
-		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
-		out.lib_log := libTable||' : données importées';RETURN next out;
-		END LOOP;
-ELSE 
-	EXECUTE 'TRUNCATE ref.'||refPartie||';';
+
+--- Case all
+CASE WHEN refPartie = 'all' THEN DROP SCHEMA IF EXISTS ref CASCADE; ELSE END CASE;
+
+-- Création du schema ref
+SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref';
+CASE WHEN flag IS NULL THEN CREATE SCHEMA ref; ELSE END CASE;
+-- Création et mise à jour de la meta-table référentiel
+SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref' AND tablename = 'ref.aa_meta';
+CASE WHEN flag IS NULL THEN CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id)); ELSE END CASE;
+
+TRUNCATE ref.aa_meta;
+EXECUTE 'INSERT INTO ref.aa_meta SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
+
+--- Les référentiels
+FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER BY nom_ref'
+	LOOP
+	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')''
+		FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one
+		JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref
+		' INTO structure;
 	EXECUTE 'SELECT string_agg(libelle||'' ''||format,'','') as champs 
 		FROM (SELECT nom_ref, libelle,CASE WHEN format = ''serial NOT NULL'' OR format = ''serial'' THEN ''integer'' ELSE format END as format
-		FROM ref.aa_meta WHERE nom_ref = '''||refPartie||''' AND typ = ''champ'')AS one GROUP BY nom_ref
+		FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'')AS one GROUP BY nom_ref
 		' INTO bdlink_structure;
-	EXECUTE 'INSERT INTO ref.'||refPartie||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||refPartie||''') as t1 ('||bdlink_structure||');';
-END CASE;
+
+	CASE WHEN refPartie = 'all' OR refPartie = libTable THEN
+		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag ;
+		CASE flag WHEN NULL THEN EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out; ELSE END CASE;
+		EXECUTE 'TRUNCATE ref.'||libTable||';';
+		
+		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
+		out.lib_log := libTable||' : données importées';RETURN next out;
+	ELSE END CASE;
+END LOOP;
 
 --- Output&Log
 out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
