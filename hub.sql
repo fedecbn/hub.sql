@@ -35,7 +35,7 @@
 -------------------------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
-
+CREATE TABLE IF NOT EXISTS public.twocol (f1 varchar, f2 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_init
@@ -1473,6 +1473,50 @@ SELECT * into out FROM hub_verif(libSchema,'meta','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'data','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'taxa','all');return next out;
 END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_help 
+--- Description : Création de l'aide et Accéder à la description d'un fonction
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_help(libFonction varchar = 'all') RETURNS setof twocol AS 
+$BODY$
+DECLARE out twocol%rowtype;
+DECLARE var varchar;
+DECLARE lesvariables varchar;
+DECLARE flag integer;
+DECLARE testFonction varchar;
+BEGIN
+--- Variable
+flag := 0;
+FOR testFonction IN EXECUTE 'SELECT DISTINCT routine_name FROM information_schema.routines WHERE  routine_name LIKE ''hub_%'' ORDER BY routine_name'
+LOOP 
+	CASE WHEN testFonction = libFonction THEN flag := 1; ELSE EXECUTE 'SELECT 1;'; END CASE; 
+END LOOP;
+--- Commande
+CASE WHEN libFonction = 'all' THEN
+	out.f1 := '-------------------------'; out.f2 := '-------------------------'; RETURN next out; 
+	out.f1 := ' Pour accéder à la description d''une fonction : ';
+	out.f2 := 'SELECT * FROM hub_help(''fonction'');';
+	RETURN next out;
+	out.f1 := ' Pour utiliser une fonction : '; 
+	out.f2 := 'SELECT * FROM fonction(''variables'');';
+	RETURN next out;
+	out.f1 := ' Liste des fonctions : ';
+	out.f2 = 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:liste;';
+	RETURN next out;
+	out.f1 := '-------------------------'; out.f2 := '-------------------------'; RETURN next out; 
+	FOR testFonction IN EXECUTE 'SELECT DISTINCT routine_name FROM information_schema.routines WHERE  routine_name LIKE ''hub_%'' ORDER BY routine_name'
+	LOOP
+		out.f1 := testFonction; out.f2 := 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:'||testFonction;RETURN next out; 
+	END LOOP;
+WHEN flag = 1 THEN
+		out.f1 := testFonction; out.f2 := 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:'||testFonction;RETURN next out; 
+ELSE out.f1 := 'Fonction inexistante';out.f1 := ' ';RETURN next out;
+END CASE;
+END;$BODY$ LANGUAGE plpgsql;
+
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
