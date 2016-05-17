@@ -35,7 +35,6 @@
 -------------------------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
-CREATE TABLE IF NOT EXISTS public.twocol (one varchar, two varchar);
 CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -1485,13 +1484,12 @@ CREATE OR REPLACE FUNCTION hub_help() RETURNS setof threecol AS
 $BODY$
 DECLARE out threecol%rowtype;
 DECLARE nom_fonction varchar;
-DECLARE desc_fonction varchar;
 DECLARE cmd varchar;
 BEGIN
 --- Variable
 
 --- Commande
-out.col1 := '-------------------------'; RETURN next out; 
+out.col1 := '-------------------------'; out.col2 := '-------------------------'; RETURN next out; 
 out.col1 := ' Pour accéder à la description d''une fonction : ';
 out.col2 := 'SELECT * FROM hub_help(''fonction'');';
 RETURN next out;
@@ -1501,16 +1499,13 @@ RETURN next out;
 out.col1:= ' Liste des fonctions : ';
 out.col2 = 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:liste;';
 RETURN next out;
-out.col1 := '-------------------------'; RETURN next out; 
+out.col1 := '-------------------------'; out.col2 := '-------------------------'; RETURN next out; 
 
 FOR nom_fonction IN EXECUTE 'SELECT DISTINCT routine_name FROM information_schema.routines WHERE  routine_name LIKE ''hub_%'' ORDER BY routine_name'
 LOOP 
 	out.col1 := nom_fonction;
-	cmd = 'SELECT routine_name||''(''||string_agg(data_type ,'','')||'')'' FROM(
-	SELECT routine_name, z.specific_name, 
-		CASE WHEN z.data_type  = ''ARRAY'' THEN z.udt_name||''[]'' 
-		WHEN z.data_type  = ''USER-DEFINED'' THEN z.udt_name 
-		ELSE z.data_type END as data_type
+	cmd = 'SELECT routine_name||''(''||string_agg(parameter_name,'','')||'')'' FROM(
+	SELECT routine_name, z.specific_name, z.parameter_name
 	FROM information_schema.routines a
 	JOIN information_schema.parameters z ON a.specific_name = z.specific_name
 	WHERE  routine_name = '''||nom_fonction||'''
