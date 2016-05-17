@@ -35,7 +35,8 @@
 -------------------------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,taxa_pourcentage_statut character varying,CONSTRAINT bilan_pkey PRIMARY KEY (uid))WITH (OIDS=FALSE);
-CREATE TABLE IF NOT EXISTS public.twocol (f1 varchar, f2 varchar);
+CREATE TABLE IF NOT EXISTS public.twocol (one varchar, two varchar);
+CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_init
@@ -68,7 +69,7 @@ cmd = 'SELECT routine_name||''(''||string_agg(data_type ,'','')||'')'' FROM(
 	GROUP BY routine_name, specific_name';
 --- Suppression de ces fonctions
 FOR fonction IN EXECUTE cmd
-   LOOP   EXECUTE 'DROP FUNCTION '||fonction||';';
+   LOOP EXECUTE 'DROP FUNCTION '||fonction||';';
    END LOOP;
 
 -- Fonctions utilisées par le hub
@@ -1480,41 +1481,49 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Création de l'aide et Accéder à la description d'un fonction
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_help(libFonction varchar = 'all') RETURNS setof twocol AS 
+CREATE OR REPLACE FUNCTION hub_help() RETURNS setof threecol AS 
 $BODY$
-DECLARE out twocol%rowtype;
-DECLARE var varchar;
-DECLARE lesvariables varchar;
-DECLARE flag integer;
-DECLARE testFonction varchar;
+DECLARE out threecol%rowtype;
+DECLARE nom_fonction varchar;
+DECLARE desc_fonction varchar;
+DECLARE cmd varchar;
 BEGIN
 --- Variable
-flag := 0;
-FOR testFonction IN EXECUTE 'SELECT DISTINCT routine_name FROM information_schema.routines WHERE  routine_name LIKE ''hub_%'' ORDER BY routine_name'
-LOOP 
-	CASE WHEN testFonction = libFonction THEN flag := 1; ELSE EXECUTE 'SELECT 1;'; END CASE; 
-END LOOP;
+
 --- Commande
-CASE WHEN libFonction = 'all' THEN
-	out.f1 := '-------------------------'; out.f2 := '-------------------------'; RETURN next out; 
-	out.f1 := ' Pour accéder à la description d''une fonction : ';
-	out.f2 := 'SELECT * FROM hub_help(''fonction'');';
-	RETURN next out;
-	out.f1 := ' Pour utiliser une fonction : '; 
-	out.f2 := 'SELECT * FROM fonction(''variables'');';
-	RETURN next out;
-	out.f1 := ' Liste des fonctions : ';
-	out.f2 = 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:liste;';
-	RETURN next out;
-	out.f1 := '-------------------------'; out.f2 := '-------------------------'; RETURN next out; 
-	FOR testFonction IN EXECUTE 'SELECT DISTINCT routine_name FROM information_schema.routines WHERE  routine_name LIKE ''hub_%'' ORDER BY routine_name'
-	LOOP
-		out.f1 := testFonction; out.f2 := 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:'||testFonction;RETURN next out; 
-	END LOOP;
-WHEN flag = 1 THEN
-		out.f1 := testFonction; out.f2 := 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:'||testFonction;RETURN next out; 
-ELSE out.f1 := 'Fonction inexistante';out.f1 := ' ';RETURN next out;
-END CASE;
+out.col1 := '-------------------------'; RETURN next out; 
+out.col1 := ' Pour accéder à la description d''une fonction : ';
+out.col2 := 'SELECT * FROM hub_help(''fonction'');';
+RETURN next out;
+out.col1 := ' Pour utiliser une fonction : '; 
+out.col2 := 'SELECT * FROM fonction(''variables'');';
+RETURN next out;
+out.col1:= ' Liste des fonctions : ';
+out.col2 = 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:liste;';
+RETURN next out;
+out.col1 := '-------------------------'; RETURN next out; 
+
+FOR nom_fonction IN EXECUTE 'SELECT DISTINCT routine_name FROM information_schema.routines WHERE  routine_name LIKE ''hub_%'' ORDER BY routine_name'
+LOOP 
+	out.col1 := nom_fonction;
+	cmd = 'SELECT routine_name||''(''||string_agg(data_type ,'','')||'')'' FROM(
+	SELECT routine_name, z.specific_name, 
+		CASE WHEN z.data_type  = ''ARRAY'' THEN z.udt_name||''[]'' 
+		WHEN z.data_type  = ''USER-DEFINED'' THEN z.udt_name 
+		ELSE z.data_type END as data_type
+	FROM information_schema.routines a
+	JOIN information_schema.parameters z ON a.specific_name = z.specific_name
+	WHERE  routine_name = '''||nom_fonction||'''
+	ORDER BY routine_name,ordinal_position
+	) as one
+	GROUP BY routine_name, specific_name';
+
+	EXECUTE cmd INTO out.col2;
+	out.col3 := 'http://wiki.fcbn.fr/doku.php?id=outil:hub:fonction:'||nom_fonction;
+	RETURN next out; 
+   END LOOP;
+
+
 END;$BODY$ LANGUAGE plpgsql;
 
 
