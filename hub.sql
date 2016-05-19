@@ -676,7 +676,7 @@ CASE WHEN refPartie = 'all' THEN DROP SCHEMA IF EXISTS ref CASCADE; ELSE END CAS
 SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref';
 CASE WHEN flag IS NULL THEN CREATE SCHEMA ref; ELSE END CASE;
 -- Création et mise à jour de la meta-table référentiel
-SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref' AND tablename = 'ref.aa_meta';
+SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref' AND tablename = 'aa_meta';
 CASE WHEN flag IS NULL THEN CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id)); ELSE END CASE;
 
 TRUNCATE ref.aa_meta;
@@ -696,7 +696,7 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 
 	CASE WHEN refPartie = 'all' OR refPartie = libTable THEN
 		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag ;
-		CASE flag WHEN NULL THEN EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out; ELSE END CASE;
+		CASE WHEN flag IS NULL THEN EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out; ELSE END CASE;
 		EXECUTE 'TRUNCATE ref.'||libTable||';';
 		
 		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
