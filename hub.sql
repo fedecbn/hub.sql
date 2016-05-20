@@ -632,8 +632,8 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
    EXECUTE 'SELECT * from dblink('''||connction||''', ''SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||''''''') as t1 (listJdd varchar);' INTO listJdd;
    typJdd = jdd;
 ELSE 
-   listJdd := ''''||jdd||'''';
-   EXECUTE 'SELECT * from dblink('''||connction||''', ''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''||jdd||''''') as t1 (typJdd varchar);' INTO typJdd;
+   listJdd := ''''''||jdd||'''''';
+   EXECUTE 'SELECT * from dblink('''||connction||''', ''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''''||jdd||''''''') as t1 (typJdd varchar);' INTO typJdd;
 END CASE;
 
 --- Commande
