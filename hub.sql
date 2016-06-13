@@ -876,6 +876,7 @@ ELSE
 	typJdd := 'WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta''';
 	listJdd := 'WHERE cd_jdd IN ('''||jdd||''')';
 END CASE;
+CASE WHEN source = 'temp' THEN source = 'temp_'; ELSE END CASE;
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_export';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Commandes
