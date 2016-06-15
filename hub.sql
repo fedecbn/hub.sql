@@ -968,7 +968,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Importer des données (fichiers CSV) dans un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, rempla boolean = false, files varchar = '', delimitr varchar = 'point_virgule') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, rempla boolean = false, delimitr varchar = 'point_virgule', files varchar = '', champ varchar = '') RETURNS setof zz_log AS 
 $BODY$
 DECLARE typJdd varchar;
 DECLARE listJdd varchar;
@@ -1005,7 +1005,7 @@ WHEN files = '' THEN
 --- Cas du chargement spécifique (un seul fichier)
 ELSE
 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
-	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
+	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' ('||champ||') FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
 	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier std_'||files||'.csv remplacé'; ELSE out.lib_log := 'fichier std_'||files||'.csv ajouté'; END CASE;
 END CASE;
 --- WHEN jdd <> 'data' AND jdd <> 'taxa' AND files <> '' THEN 
