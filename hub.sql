@@ -1203,12 +1203,12 @@ END CASE;
 ---Log final
 out.typ_log := 'hub_push'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';
 CASE 
-WHEN (ct = ct2) AND typAction = 'replace' THEN out.lib_log := 'Partie temporaire vide - jdd = '||jdd; out.nb_occurence := '-'; 
-WHEN (ct <> ct2) AND typAction = 'replace' THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := '-';
-WHEN (ct = ct2) AND typAction = 'add' THEN out.lib_log := 'Aucune modification à apporter à la partie propre - jdd = '||jdd; out.nb_occurence := '-'; 
-WHEN (ct <> ct2) AND typAction = 'add' THEN out.lib_log := 'Modification apportées à la partie propre - jdd = '||jdd; out.nb_occurence := '-';
-WHEN (ct = ct2) AND typAction = 'del' THEN out.lib_log := 'Aucun point commun entre les partie propre et temporaire - jdd = '||jdd; out.nb_occurence := '-'; 
-WHEN (ct <> ct2) AND typAction = 'del' THEN out.lib_log := 'Partie temporaire nettoyée - jdd = '||jdd; out.nb_occurence := '-';
+WHEN (ct = ct2) AND typAction = 'replace' THEN out.lib_log := 'Partie temporaire vide - jdd = '||jdd; out.nb_occurence := jdd; 
+WHEN (ct <> ct2) AND typAction = 'replace' THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := jdd;
+WHEN (ct = ct2) AND typAction = 'add' THEN out.lib_log := 'Aucune modification à apporter à la partie propre - jdd = '||jdd; out.nb_occurence := jdd; 
+WHEN (ct <> ct2) AND typAction = 'add' THEN out.lib_log := 'Modification apportées à la partie propre - jdd = '||jdd; out.nb_occurence := jdd;
+WHEN (ct = ct2) AND typAction = 'del' THEN out.lib_log := 'Aucun point commun entre les partie propre et temporaire - jdd = '||jdd; out.nb_occurence := jdd; 
+WHEN (ct <> ct2) AND typAction = 'del' THEN out.lib_log := 'Partie temporaire nettoyée - jdd = '||jdd; out.nb_occurence := jdd;
 ELSE SELECT 1 into nothing; END CASE;
 PERFORM hub_log (libSchema, out);RETURN NEXT out; 
 
