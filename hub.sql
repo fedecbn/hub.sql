@@ -630,13 +630,13 @@ connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||uti
 EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
 
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN    
-   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||'''''''); as t1';
+   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||''''''');';
    EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(listJdd varchar);' INTO listJdd;
    PERFORM dblink_disconnect('link');
    typJdd = jdd;
 ELSE 
    listJdd := ''''''||jdd||'''''';
-   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''''||jdd||''''''') as t1;';
+   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''''||jdd||''''''');';
    EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(typJdd varchar);' INTO typJdd;
    PERFORM dblink_disconnect('link');
 END CASE;
@@ -968,11 +968,12 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description : Importer des données (fichiers CSV) dans un hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, rempla boolean = false, files varchar = '') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_import(libSchema varchar, jdd varchar, path varchar, rempla boolean = false, files varchar = '', delimitr varchar = 'point_virgule') RETURNS setof zz_log AS 
 $BODY$
 DECLARE typJdd varchar;
 DECLARE listJdd varchar;
 DECLARE libTable varchar;
+--DECLARE delim_import varchar;
 DECLARE out zz_log%rowtype;
 BEGIN
 --- Variable
@@ -983,31 +984,33 @@ ELSE
 	EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 
 	listJdd := ''''||jdd||'''';
 END CASE;
+--- delimitr
+CASE WHEN delimitr = 'virgule' THEN delimitr = ''','''; WHEN delimitr = 'tab' THEN delimitr = 'E''\t'''; WHEN delimitr = 'point_virgule' THEN delimitr = ''';'''; ELSE delimitr = ''';'''; END CASE;
 --- Commande
 --- Cas du chargement de tous les jeux de données
 CASE WHEN jdd = 'all' THEN 
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;'
 	LOOP 
 		CASE WHEN rempla = TRUE THEN EXECUTE 'TRUNCATE "'||libSchema||'".temp_'||libTable||';';out.lib_log := ' Tous les fichiers ont été remplacé '; ELSE out.lib_log := ' Tous les fichiers ont été importé '; END CASE;
-		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; 
+		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';'; 
 	END LOOP;
 --- Cas du chargement global (tous les fichiers)
 WHEN files = '' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
 	LOOP 
 		CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||libTable||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
-		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; 
+		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';'; 
 	END LOOP;
 	CASE WHEN rempla = TRUE THEN out.lib_log := 'jdd '||jdd||' remplacé'; ELSE out.lib_log := 'jdd '||jdd||' ajouté';END CASE;
 --- Cas du chargement spécifique (un seul fichier)
 ELSE
 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
-	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
 	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier std_'||files||'.csv remplacé'; ELSE out.lib_log := 'fichier std_'||files||'.csv ajouté'; END CASE;
 END CASE;
 --- WHEN jdd <> 'data' AND jdd <> 'taxa' AND files <> '' THEN 
 --- 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; out.lib_log := 'Fichier remplacé'; ELSE out.lib_log := 'Fichier ajouté'; END CASE;
---- 	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+--- 	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
 --- ELSE out.lib_log := 'Problème identifié (Soit le jdd soit le fichier)'; END CASE;
 
 --- Output&Log
