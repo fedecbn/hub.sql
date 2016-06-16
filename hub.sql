@@ -313,11 +313,37 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_useradd
+--- Nom : hub_admin_user_add
 --- Description : Ajouter un utilisateur et lui donne les droits nécessaires
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_useradd(utilisateur varchar, mdp varchar, schma varchar = null, role varchar = 'lecteur') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_admin_user_add(utilisateur varchar, mdp varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+declare db_nam varchar;
+declare flag integer;
+BEGIN
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
+
+EXECUTE 'SELECT DISTINCT 1 FROM information_schema.enabled_roles WHERE role_name <> '''||utilisateur||''';' INTO flag;
+CASE WHEN flag = 1 THEN 
+EXECUTE 'CREATE USER "'||utilisateur||'" PASSWORD '''||mdp||''';
+	GRANT CONNECT ON DATABASE '||db_nam||' TO "'||utilisateur||'" ;
+	';
+	out.lib_log := utilisateur||' ajouté';
+ELSE out.lib_log := 'ERREUR : '||utilisateur||' existe déjà';
+END CASE;
+
+out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_user_right_add
+--- Description : Ajouter des droits à un utilisateur
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_right_add(utilisateur varchar, schma varchar, role varchar = 'lecteur') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 declare db_nam varchar;
@@ -325,10 +351,6 @@ declare exist varchar;
 declare listSchem varchar;
 BEGIN
 SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
-EXECUTE '
-	CREATE USER "'||utilisateur||'" PASSWORD '''||mdp||''';
-	GRANT CONNECT ON DATABASE '||db_nam||' TO "'||utilisateur||'" ;
-';
 
 --- Tables hub
 FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema <> 'pg_catalog' AND table_schema <> 'information_schema'
@@ -336,7 +358,7 @@ FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHE
 		EXECUTE 'GRANT USAGE ON SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
 		CASE WHEN listSchem = schma AND role = 'gestionnaire' THEN
 			EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-			EXECUTE 'SELECT * FROM hub_admin_dblink_right('''||utilisateur||''');';
+			EXECUTE 'SELECT * FROM hub_admin_right_dblink('''||utilisateur||''');';
 		ELSE EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
 		END CASE;
 	END LOOP;
@@ -351,16 +373,16 @@ CASE WHEN exist IS NOT NULL AND role = 'lecteur' THEN
 		';
 	ELSE END CASE;
 
-out.lib_log := utilisateur||' ajouté';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := utilisateur||' a les droits de '||role||' sur '||schma;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_rigth_add';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_userdrop
+--- Nom : hub_admin_right_drop
 --- Description : Supprime un utilisateur
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_userdrop(utilisateur varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_admin_right_drop(utilisateur varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE db_nam varchar;
@@ -381,9 +403,30 @@ FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHE
 		REVOKE ALL PRIVILEGES ON SCHEMA "'||listSchem||'" FROM "'||utilisateur||'";
 		';
 	END LOOP;
+
+EXECUTE 'SELECT * FROM hub_admin_right_dblink ('''||utilisateur||''', false)';
+
+--- Output&Log
+out.lib_log := 'Droits supprimés pour '||utilisateur;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_right_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+END;$BODY$LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_userdrop
+--- Description : Supprime un utilisateur
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_user_drop(utilisateur varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE db_nam varchar;
+DECLARE listSchem varchar;
+BEGIN
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
+EXECUTE 'SELECT * FROM hub_admin_right_drop('''||utilisateur||''')';
 EXECUTE 'DROP USER IF EXISTS "'||utilisateur||'";';
 --- Output&Log
-out.lib_log := utilisateur||' supprimé';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := utilisateur||' supprimé';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -624,36 +667,52 @@ DECLARE list_champ varchar;
 DECLARE listJdd varchar;
 DECLARE typJdd varchar;
 DECLARE isvid varchar;
+DECLARE connecte_list varchar[];
+DECLARE connecte varchar;
+DECLARE cmd varchar;
 BEGIN
 --- Variables
 connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
-EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+
+--- Vérification qu'aucune connexion n'est déjà ouverte.
+SELECT dblink_get_connections() INTO connecte_list;
+CASE WHEN connecte_list IS NOT NULL THEN
+	FOREACH connecte IN ARRAY connecte_list LOOP 
+		CASE WHEN connecte = 'link' THEN PERFORM dblink_disconnect('link'); ELSE END CASE;
+		EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
+	END LOOP;
+ELSE END CASE;
 
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN    
-   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||''''''');';
-   EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(listJdd varchar);' INTO listJdd;
-   PERFORM dblink_disconnect('link');
+   cmd = 'SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||''''''');';
+   out.lib_log := cmd; RETURN NEXT out;
+   --EXECUTE 'SELECT * FROM dblink_send_query(''link'','''||cmd||''')';
+   --EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(listJdd varchar);' INTO listJdd;
+   --PERFORM dblink_disconnect('link');
+   --out.lib_log := cmd;
    typJdd = jdd;
 ELSE 
    listJdd := ''''''||jdd||'''''';
-   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''''||jdd||''''''');';
-   EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(typJdd varchar);' INTO typJdd;
-   PERFORM dblink_disconnect('link');
+   --EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''''||jdd||''''''');';
+   --EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(typJdd varchar);' INTO typJdd;
+   --PERFORM dblink_disconnect('link');
 END CASE;
 
 --- Commande
 FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' 
 	LOOP
-	EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
-	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE (typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'') AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;
-	EXECUTE 'SELECT * from dblink_send_query(''link'',''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'');';
-	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * FROM dblink_get_result(''link'') as t1 ('||list_champ||');';
-	PERFORM dblink_disconnect('link');
+	--EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
+	--EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE (typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'') AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;
+	--EXECUTE 'SELECT * from dblink_send_query(''link'',''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'');';
+	--EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * FROM dblink_get_result(''link'') as t1 ('||list_champ||');';
+	--PERFORM dblink_disconnect('link');
 END LOOP;
 
 --- Output&Log
-out.lib_log := jdd||' importé';out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
-PERFORM hub_log (libSchema_to, out);RETURN next out;
+--out.lib_log := jdd||' importé';
+-- out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+-- PERFORM hub_log (libSchema_to, out);RETURN next out;
 
 END;$BODY$ LANGUAGE plpgsql;
 
@@ -1592,10 +1651,11 @@ END;$BODY$ LANGUAGE plpgsql;
 
 --- SELECT hub_runfc();
 
-CREATE OR REPLACE FUNCTION hub_admin_dblink_right (login varchar) RETURNS varchar  AS 
+CREATE OR REPLACE FUNCTION hub_admin_right_dblink (login varchar, is_granted boolean = true) RETURNS varchar  AS 
 $BODY$ 
 DECLARE cmd varchar;
 BEGIN
+CASE WHEN is_granted  IS TRUE THEN
 cmd = '
 GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text) TO "'||login||'";
 GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) TO "'||login||'";
@@ -1635,7 +1695,47 @@ GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) TO "'||login||'";
 GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) TO "'||login||'";
 GRANT ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) TO "'||login||'";
 ';
-
+ELSE 
+cmd = '
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_delete(text,int2vector,integer,text[]) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_insert(text,int2vector,integer,text[],text[]) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_update(text,int2vector,integer,text[],text[]) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_cancel_query(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect_u(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect_u(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_disconnect(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_error_message(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_notify() FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_notify(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_pkey(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_result(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_result(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_is_busy(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) FROM "'||login||'";
+';
+END CASE;
 EXECUTE cmd;
 RETURN 'OK';
 END;$BODY$ LANGUAGE plpgsql;
