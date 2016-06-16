@@ -336,6 +336,7 @@ FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHE
 		EXECUTE 'GRANT USAGE ON SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
 		CASE WHEN listSchem = schma AND role = 'gestionnaire' THEN
 			EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+			EXECUTE 'SELECT * FROM hub_admin_dblink_right('''||utilisateur||''');';
 		ELSE EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
 		END CASE;
 	END LOOP;
@@ -1590,6 +1591,54 @@ RETURN nb||'-'||cbn[nb];
 END;$BODY$ LANGUAGE plpgsql;
 
 --- SELECT hub_runfc();
+
+CREATE OR REPLACE FUNCTION hub_admin_dblink_right (login varchar) RETURNS varchar  AS 
+$BODY$ 
+DECLARE cmd varchar;
+BEGIN
+cmd = '
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_delete(text,int2vector,integer,text[]) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_insert(text,int2vector,integer,text[],text[]) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_update(text,int2vector,integer,text[],text[]) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_cancel_query(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect_u(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect_u(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_disconnect(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_error_message(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_notify() TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_notify(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_pkey(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_result(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_result(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_is_busy(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) TO "'||login||'";
+';
+
+EXECUTE cmd;
+RETURN 'OK';
+END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
