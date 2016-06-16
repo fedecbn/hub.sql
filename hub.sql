@@ -33,7 +33,7 @@
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
-DROP TABLE public.bilan;CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
+CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
 CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -987,7 +987,11 @@ END CASE;
 CASE WHEN delimitr = 'virgule' THEN delimitr = ''','''; WHEN delimitr = 'tab' THEN delimitr = 'E''\t'''; WHEN delimitr = 'point_virgule' THEN delimitr = ''';'''; ELSE delimitr = ''';'''; END CASE;
 --- Commande
 --- Cas du chargement de tous les jeux de données
-CASE WHEN jdd = 'all' THEN 
+CASE WHEN files <> '' THEN
+	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
+	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' ('||champ||') FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
+	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier std_'||files||'.csv remplacé'; ELSE out.lib_log := 'fichier std_'||files||'.csv ajouté'; END CASE;
+WHEN jdd = 'all' THEN 
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;'
 	LOOP 
 		CASE WHEN rempla = TRUE THEN EXECUTE 'TRUNCATE "'||libSchema||'".temp_'||libTable||';';out.lib_log := ' Tous les fichiers ont été remplacé '; ELSE out.lib_log := ' Tous les fichiers ont été importé '; END CASE;
@@ -1003,9 +1007,6 @@ WHEN files = '' THEN
 	CASE WHEN rempla = TRUE THEN out.lib_log := 'jdd '||jdd||' remplacé'; ELSE out.lib_log := 'jdd '||jdd||' ajouté';END CASE;
 --- Cas du chargement spécifique (un seul fichier)
 ELSE
-	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
-	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' ('||champ||') FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
-	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier std_'||files||'.csv remplacé'; ELSE out.lib_log := 'fichier std_'||files||'.csv ajouté'; END CASE;
 END CASE;
 --- WHEN jdd <> 'data' AND jdd <> 'taxa' AND files <> '' THEN 
 --- 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; out.lib_log := 'Fichier remplacé'; ELSE out.lib_log := 'Fichier ajouté'; END CASE;
