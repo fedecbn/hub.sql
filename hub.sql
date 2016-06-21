@@ -685,8 +685,7 @@ ELSE END CASE;
 EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
 
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN    
-   cmd = 'SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||''''''');';
-   out.lib_log := cmd; RETURN NEXT out;
+   cmd = 'SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||'''''';
    EXECUTE 'SELECT * FROM dblink_send_query(''link'','''||cmd||''')';
    EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(listJdd varchar);' INTO listJdd;
    PERFORM dblink_disconnect('link');
