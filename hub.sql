@@ -627,7 +627,7 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	typJdd := jdd;
 ELSE 
 	listJdd := ''''||jdd||'''';
-	EXECUTE 'SELECT typ_jdd FROM "'||fromlibSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+	EXECUTE 'SELECT typ_jdd FROM "'||fromlibSchema||'".'||fromprefixe||'metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
 END CASE;
 --- Output&Log
 out.lib_schema := tolibSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear_plus';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
