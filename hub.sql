@@ -303,11 +303,13 @@ WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	out.lib_log := 'st_talend_'||libTable||'_'||version||'.xml exporté';RETURN next out;
 	END LOOP;
 WHEN typAction = 'export' THEN	--- Mise à jour
+	--- meta-table
+	EXECUTE 'COPY (SELECT * FROM ref.aa_meta) TO '''||path||'/ref_aa_meta.csv'' CSV HEADER DELIMITER E'';'' ENCODING ''UTF8'' ;';
 	--- Tables
-	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref'
+	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref' AND tablename <> 'aa_meta'
 	LOOP
-	--- Partie temp
-	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/ref_'||libTable||'.csv'' ENCODING ''UTF8'';';
+	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
+	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/ref_'||libTable||'.csv'' CSV HEADER DELIMITER E'''||delimitr||''' ENCODING ''UTF8'' ;';
 	out.lib_log := 'ref_'||libTable||'.csv exporté';RETURN next out;
 	END LOOP;
 ELSE out.lib_log := 'Action non reconnue';RETURN next out;
