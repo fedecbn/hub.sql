@@ -766,6 +766,10 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 		EXECUTE 'TRUNCATE ref.'||libTable||';';
 		
 		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
+
+		--- Index geo
+		CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
+
 		out.lib_log := libTable||' : données importées';RETURN next out;
 	ELSE END CASE;
 END LOOP;
