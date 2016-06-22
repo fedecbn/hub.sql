@@ -249,6 +249,8 @@ WHEN typAction = 'create' THEN	--- Creation
 			EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
 			EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
 			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+		--- Index geo
+		CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
 		out.lib_log := libTable||' : données importées';RETURN next out;
 		END CASE;
 		END LOOP;
@@ -264,6 +266,8 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		CASE WHEN flag2 = 1 THEN
 			EXECUTE 'TRUNCATE ref.'||libTable;
 			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+			--- Index geo
+			CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
 			out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
 		ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
 		END CASE;
