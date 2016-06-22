@@ -302,8 +302,14 @@ WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	TO '''||path||'/st_talend_'||libTable||'_'||version||'.xml'' ENCODING ''UTF8'';';
 	out.lib_log := 'st_talend_'||libTable||'_'||version||'.xml exporté';RETURN next out;
 	END LOOP;
-
-
+WHEN typAction = 'export' THEN	--- Mise à jour
+	--- Tables
+	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref'
+	LOOP
+	--- Partie temp
+	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/ref_'||libTable||'.csv'' ENCODING ''UTF8'';';
+	out.lib_log := 'ref_'||libTable||'.csv exporté';RETURN next out;
+	END LOOP;
 ELSE out.lib_log := 'Action non reconnue';RETURN next out;
 END CASE;
 
