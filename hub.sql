@@ -304,7 +304,7 @@ WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	END LOOP;
 WHEN typAction = 'export' THEN	--- Mise à jour
 	--- meta-table
-	EXECUTE 'COPY (SELECT * FROM ref.aa_meta) TO '''||path||'/ref_aa_meta.csv'' CSV HEADER DELIMITER E'';'' ENCODING ''UTF8'' ;';
+	EXECUTE 'COPY (SELECT * FROM ref.aa_meta) TO '''||path||'/aa_meta.csv'' CSV HEADER DELIMITER E'';'' ENCODING ''UTF8'' ;';
 	--- Tables
 	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref' AND tablename <> 'aa_meta'
 	LOOP
