@@ -309,7 +309,7 @@ WHEN typAction = 'export' THEN	--- Mise à jour
 	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref' AND tablename <> 'aa_meta'
 	LOOP
 	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
-	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/ref_'||libTable||'.csv'' CSV HEADER DELIMITER E'''||delimitr||''' ENCODING ''UTF8'' ;';
+	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/'||libTable||'.csv'' CSV HEADER DELIMITER E'''||delimitr||''' ENCODING ''UTF8'' ;';
 	out.lib_log := 'ref_'||libTable||'.csv exporté';RETURN next out;
 	END LOOP;
 ELSE out.lib_log := 'Action non reconnue';RETURN next out;
