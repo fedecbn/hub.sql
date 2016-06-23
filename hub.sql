@@ -267,7 +267,9 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 			EXECUTE 'TRUNCATE ref.'||libTable;
 			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
 			--- Index geo
-			CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
+			CASE WHEN substr(libTable,1,3) = 'geo' THEN 
+				-- EXECUTE 'DROP INDEX IF EXISTS '||libTable||'_gist';
+				EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
 			out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
 		ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
 		END CASE;
