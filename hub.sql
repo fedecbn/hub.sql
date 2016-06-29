@@ -1535,13 +1535,11 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libell
 	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND cd_table = '''||libTable||''' GROUP BY cd_champ;' LOOP
 		FOR ref IN EXECUTE 'SELECT one.nom_ref, champ_corresp, condition_ref FROM (SELECT nom_ref, libelle as condition_ref FROM ref.aa_meta a WHERE typ = ''condition_ref'') as one JOIN (SELECT nom_ref, libelle as champ_ref FROM ref.aa_meta a WHERE typ = ''champ_ref'') as two ON one.nom_ref = two.nom_ref JOIN (SELECT nom_ref, libelle as champ_corresp FROM ref.aa_meta a WHERE typ = ''champ_corresp'') as trois ON one.nom_ref = trois.nom_ref WHERE champ_ref = '''||libChamp||'''' LOOP
 			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN ref.'||ref.col1||' z ON a.'||libChamp||' = z.'||ref.col2||' WHERE '||ref.col3||' AND z.'||ref.col2||' IS NULL;' INTO compte;
-			out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := ref.col1||' - Valeur(s) hors référentiel => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''ref'');'; 
-			out.nb_occurence := compte||' occurence(s)'; return next out;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				--out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Valeur(s) hors référentiel => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''ref'');'; 
-				--out.nb_occurence := compte||' occurence(s)'; return next out;
-				--out.lib_log := typJdd ||' : Valeur(s) hors référentiel';PERFORM hub_log (libSchema, out);
+				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := ref.col1||' - Valeur(s) hors référentiel => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''ref'');'; 
+				out.nb_occurence := compte||' occurence(s)'; return next out;
+				out.lib_log := typJdd ||' : Valeur(s) hors référentiel';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
 			END LOOP;
 		END LOOP;
