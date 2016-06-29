@@ -34,6 +34,7 @@
 -------------------------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
+CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
 CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -197,7 +198,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Création des référentiels
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_ref(typAction varchar, path varchar = '/home/hub/00_ref/', version varchar = '3.2') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_admin_ref(typAction varchar, path varchar = '/home/hub/00_ref/', ref varchar = null, version varchar = '3.2') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE flag1 integer;
@@ -211,7 +212,6 @@ BEGIN
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
 ---Variables
 
-
 --- Commandes 
 CASE WHEN typAction = 'drop' THEN	--- Suppression
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name = ''ref''' INTO flag1;
@@ -221,13 +221,16 @@ CASE WHEN typAction = 'drop' THEN	--- Suppression
 WHEN typAction = 'delete' THEN	--- Suppression
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name = ''ref''' INTO flag1;
 	CASE WHEN flag1 = 1 THEN
-		FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER BY nom_ref'
-		LOOP EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
-		CASE WHEN flag2 = 1 THEN 
-			EXECUTE 'DROP TABLE ref."'||libTable||'" CASCADE';  out.lib_log := 'Table '||libTable||' supprimée';RETURN next out;
-		ELSE out.lib_log := 'Table '||libTable||' inexistante';
+		CASE WHEN ref IS NULL THEN 
+			FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER BY nom_ref' LOOP
+				EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
+				CASE WHEN flag2 = 1 THEN EXECUTE 'DROP TABLE ref."'||libTable||'" CASCADE';  out.lib_log := 'Table '||libTable||' supprimée';RETURN next out;
+				ELSE out.lib_log := 'Table '||libTable||' inexistante'; END CASE;
+			END LOOP;
+		ELSE EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||ref||''';' INTO flag2;
+			CASE WHEN flag2 = 1 THEN EXECUTE 'DROP TABLE ref."'||libTable||'" CASCADE';  out.lib_log := 'Table '||libTable||' supprimée';RETURN next out;
+			ELSE out.lib_log := 'Table '||libTable||' inexistante'; END CASE;
 		END CASE;
-		END LOOP;
 	ELSE out.lib_log := 'Schéma ref inexistant';RETURN next out;END CASE;
 
 WHEN typAction = 'create' THEN	--- Creation
@@ -236,38 +239,29 @@ WHEN typAction = 'create' THEN	--- Creation
 	--- Initialisation du meta-référentiel
 	CREATE TABLE IF NOT EXISTS ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
 	TRUNCATE ref.aa_meta;
-	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER '';'';';
+	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
 	--- Tables
-	FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref  ORDER BY nom_ref'
-		LOOP EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
-		CASE WHEN flag2 = 1 THEN 
-			out.lib_log := libTable||' a déjà été créée' ;RETURN next out;
-		ELSE EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')''
-			FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one
-			JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref
-			' INTO structure;
-			EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
-			EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
-			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
-		out.lib_log := libTable||' : données importées';RETURN next out;
-		END CASE;
+	CASE WHEN ref IS NULL THEN 
+		FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref  ORDER BY nom_ref' LOOP
+			EXECUTE 'SELECT * FROM hub_ref_create('''||libTable||''','''||path||''')';
 		END LOOP;
+	ELSE 
+		libTable = ref;
+		EXECUTE 'SELECT * FROM hub_ref_create('''||libTable||''','''||path||''')';
+	END CASE;
 
 WHEN typAction = 'update' THEN	--- Mise à jour
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
 	CASE WHEN flag1 = 1 THEN out.lib_log := 'Schema ref déjà créés';RETURN next out;ELSE CREATE SCHEMA "ref"; out.lib_log := 'Schéma ref créés';RETURN next out;END CASE;
 	--- Tables
-	FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref'
-		LOOP 
-		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
-		EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
-		CASE WHEN flag2 = 1 THEN
-			EXECUTE 'TRUNCATE ref.'||libTable;
-			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
-			out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
-		ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
-		END CASE;
-	END LOOP;
+	CASE WHEN ref IS NULL THEN 
+		FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref' LOOP 
+			EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
+		END LOOP;
+	ELSE 
+		libTable = ref;
+		EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
+	END CASE;
 
 WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	--- Tables
@@ -302,13 +296,89 @@ WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	TO '''||path||'/st_talend_'||libTable||'_'||version||'.xml'' ENCODING ''UTF8'';';
 	out.lib_log := 'st_talend_'||libTable||'_'||version||'.xml exporté';RETURN next out;
 	END LOOP;
-
-
+	
+WHEN typAction = 'export' THEN	--- Mise à jour
+	--- meta-table
+	EXECUTE 'COPY (SELECT * FROM ref.aa_meta) TO '''||path||'/aa_meta.csv'' CSV HEADER DELIMITER E'';'' ENCODING ''UTF8'' ;';
+	--- Tables
+	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref' AND tablename <> 'aa_meta'
+	LOOP
+	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
+	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/ref_'||libTable||'.csv'' CSV HEADER DELIMITER E'''||delimitr||''' ENCODING ''UTF8'' ;';
+	out.lib_log := 'ref_'||libTable||'.csv exporté';RETURN next out;
+	END LOOP;
 ELSE out.lib_log := 'Action non reconnue';RETURN next out;
 END CASE;
 
 --- Log
 PERFORM hub_log ('public', out); 
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_ref_create
+--- Description : Création et import d'un référentiel 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_ref_create(libTable varchar, path varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE flag2 integer;
+DECLARE structure varchar;
+DECLARE delimitr varchar;
+BEGIN
+EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
+CASE WHEN libTable = 'aa_meta' THEN
+	--- Initialisation du meta-référentiel
+	CREATE TABLE IF NOT EXISTS ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
+	TRUNCATE ref.aa_meta;
+	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
+ELSE
+	CASE WHEN flag2 = 1 THEN 
+	out.lib_log := libTable||' a déjà été créée' ;RETURN next out;
+	ELSE 
+	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')'' FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref' INTO structure;
+	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
+	EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
+	EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+	--- Index geo
+	CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
+	out.lib_log := libTable||' : données importées';RETURN next out;
+END CASE;
+END CASE;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_ref_update
+--- Description : Met un jour référentiel 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_ref_update(libTable varchar, path varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE flag2 integer;
+DECLARE delimitr varchar;
+DECLARE prefixe varchar;
+BEGIN
+EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
+CASE WHEN libTable = 'aa_meta' THEN 
+	TRUNCATE ref.aa_meta;
+	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
+ELSE 
+	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr; 
+	CASE WHEN flag2 = 1 THEN
+		EXECUTE 'TRUNCATE ref.'||libTable;
+		EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+		--- Index geo
+		CASE WHEN substr(libTable,1,3) = 'geo' THEN 
+			EXECUTE 'DROP INDEX IF EXISTS '||libTable||'_gist';
+			EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; 
+		ELSE END CASE;
+		out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
+	ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
+	END CASE;
+END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -1227,7 +1297,10 @@ BEGIN
 --- Variables Jdd
 ct=0;ct2=0;
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN typJdd = jdd;
-ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+ELSE 
+	CASE WHEN mode = 1 THEN EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+	WHEN mode = 2 THEN EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 
+	ELSE flag :=0; END CASE;	
 END CASE;
 --- mode 1 = intra Shema / mode 2 = entre shema et agregation
 CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; ELSE flag :=0; END CASE;
@@ -1242,6 +1315,7 @@ CASE WHEN typAction = 'replace' THEN
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
+
 --- Ajout de la différence = hub_add + hub_update sur meta et data/taxa
 WHEN typAction = 'add' THEN
 	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
@@ -1356,6 +1430,7 @@ DECLARE typJdd varchar;
 DECLARE libTable varchar;
 DECLARE libChamp varchar;
 DECLARE typChamp varchar;
+DECLARE ref threecol%rowtype;
 DECLARE val varchar;
 DECLARE flag integer;
 DECLARE compte integer;
@@ -1438,9 +1513,9 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''''
-	LOOP FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' AND typ_jdd = '''||typJdd||''''
-		LOOP EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
+FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||'''' LOOP 
+	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' AND typ_jdd = '''||typJdd||'''' LOOP
+		EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
 		CASE WHEN flag = 1 THEN
 			compte := 0;
 			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = code_valeur WHERE code_valeur IS NULL'  INTO compte;
@@ -1456,6 +1531,8 @@ FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '
 	END LOOP;
 ELSE --- rien
 END CASE;
+
+ELSE END CASE;
 
 --- Le 100%
 CASE WHEN out.lib_log = '' THEN
