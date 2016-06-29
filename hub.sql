@@ -254,7 +254,6 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
 	CASE WHEN flag1 = 1 THEN out.lib_log := 'Schema ref déjà créés';RETURN next out;ELSE CREATE SCHEMA "ref"; out.lib_log := 'Schéma ref créés';RETURN next out;END CASE;
 	--- Tables
-<<<<<<< HEAD
 	CASE WHEN ref IS NULL THEN 
 		FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref' LOOP 
 			EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
@@ -263,7 +262,7 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		libTable = ref;
 		EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
 	END CASE;
-=======
+
 	FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref'
 		LOOP 
 		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
@@ -279,7 +278,6 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
 		END CASE;
 	END LOOP;
->>>>>>> origin/master
 
 WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	--- Tables
