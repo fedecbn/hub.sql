@@ -262,22 +262,7 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		libTable = ref;
 		EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
 	END CASE;
-
-	FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref'
-		LOOP 
-		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
-		EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
-		CASE WHEN flag2 = 1 THEN
-			EXECUTE 'TRUNCATE ref.'||libTable;
-			EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
-			--- Index geo
-			CASE WHEN substr(libTable,1,3) = 'geo' THEN 
-				-- EXECUTE 'DROP INDEX IF EXISTS '||libTable||'_gist';
-				EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
-			out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
-		ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
-		END CASE;
-	END LOOP;
+	
 
 WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	--- Tables
@@ -350,9 +335,6 @@ CASE WHEN libTable = 'aa_meta' THEN
 	TRUNCATE ref.aa_meta;
 	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
 ELSE
-	CASE WHEN flag2 = 1 THEN 
-	out.lib_log := libTable||' a déjà été créée' ;RETURN next out;
-	ELSE 
 	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')'' FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref' INTO structure;
 	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
 	EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
@@ -360,7 +342,6 @@ ELSE
 	--- Index geo
 	CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
 	out.lib_log := libTable||' : données importées';RETURN next out;
-END CASE;
 END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
@@ -1550,14 +1531,17 @@ END CASE;
 
 -- Test concernant les référentiels
 CASE WHEN (typVerif = 'ref' OR typVerif = 'all') THEN
-FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table, cd_champ' LOOP
-	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND cd_table = '''||libTable||''' GROUP BY cd_table, cd_champ;' LOOP
+FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table' LOOP
+	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND cd_table = '''||libTable||''' GROUP BY cd_champ;' LOOP
 		FOR ref IN EXECUTE 'SELECT one.nom_ref, champ_corresp, condition_ref FROM (SELECT nom_ref, libelle as condition_ref FROM ref.aa_meta a WHERE typ = ''condition_ref'') as one JOIN (SELECT nom_ref, libelle as champ_ref FROM ref.aa_meta a WHERE typ = ''champ_ref'') as two ON one.nom_ref = two.nom_ref JOIN (SELECT nom_ref, libelle as champ_corresp FROM ref.aa_meta a WHERE typ = ''champ_corresp'') as trois ON one.nom_ref = trois.nom_ref WHERE champ_ref = '''||libChamp||'''' LOOP
-			EXECUTE 'SELECT count(*) FROM '||libSchema||'.'||libTable||' a LEFT JOIN ref.'||ref.col1||' z ON a.'||libChamp||' = z.'||ref.col2||' WHERE '||ref.col3||';' INTO compte;
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN ref.'||ref.col1||' z ON a.'||libChamp||' = z.'||ref.col2||' WHERE '||ref.col3||' AND z.'||ref.col2||' IS NULL;' INTO compte;
+			out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := ref.col1||' - Valeur(s) hors référentiel => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''ref'');'; 
+			out.nb_occurence := compte||' occurence(s)'; return next out;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Valeur(s) hors référentiel => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''ref'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
-				out.lib_log := typJdd ||' : Valeur(s) non listée(s)';PERFORM hub_log (libSchema, out);
+				--out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Valeur(s) hors référentiel => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''ref'');'; 
+				--out.nb_occurence := compte||' occurence(s)'; return next out;
+				--out.lib_log := typJdd ||' : Valeur(s) hors référentiel';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
 			END LOOP;
 		END LOOP;
