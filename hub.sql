@@ -781,6 +781,70 @@ PERFORM hub_log (libSchema_to, out);RETURN next out;
 
 END;$BODY$ LANGUAGE plpgsql;
 
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_simple_connect 
+--- Description :  Copie du Hub vers un serveur distant
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_simple_connect(conect varchar, jdd varchar, libSchema_from varchar, libSchema_to varchar) RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE connction varchar;
+DECLARE libTable varchar;
+DECLARE list_champ varchar;
+DECLARE listJdd varchar;
+DECLARE typJdd varchar;
+DECLARE isvid varchar;
+DECLARE connecte_list varchar[];
+DECLARE connecte varchar;
+DECLARE cmd varchar;
+BEGIN
+--- Variables
+connction = conect;
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_simple_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+
+--- Vérification qu'aucune connexion n'est déjà ouverte.
+SELECT dblink_get_connections() INTO connecte_list;
+CASE WHEN connecte_list IS NOT NULL THEN
+	FOREACH connecte IN ARRAY connecte_list LOOP 
+		CASE WHEN connecte = 'link' THEN PERFORM dblink_disconnect('link'); ELSE END CASE;
+	END LOOP;
+ELSE END CASE;
+EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
+
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN    
+   cmd = 'SELECT CASE WHEN string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') IS NULL THEN ''''vide'''' ELSE string_agg(''''''''''''''''''''''''||cd_jdd||'''''''''''''''''''''''','''','''') END FROM "'||libSchema_from||'".metadonnees WHERE typ_jdd = '''''||jdd||'''''';
+   EXECUTE 'SELECT * FROM dblink_send_query(''link'','''||cmd||''')';
+   EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(listJdd varchar);' INTO listJdd;
+   PERFORM dblink_disconnect('link');
+   typJdd = jdd;
+ELSE 
+   listJdd := ''''''||jdd||'''''';
+   EXECUTE 'SELECT * FROM dblink_send_query(''link'',''SELECT CASE WHEN typ_jdd IS NULL THEN ''''vide'''' ELSE typ_jdd END FROM "'||libSchema_from||'".metadonnees WHERE cd_jdd = '''''||jdd||''''''');';
+   EXECUTE 'SELECT * FROM dblink_get_result(''link'') as t1(typJdd varchar);' INTO typJdd;
+   PERFORM dblink_disconnect('link');
+END CASE;
+
+--- Commande
+FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' 
+	LOOP
+	EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
+	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE (typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'') AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;
+	EXECUTE 'SELECT * from dblink_send_query(''link'',''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'');';
+	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * FROM dblink_get_result(''link'') as t1 ('||list_champ||');';
+	PERFORM dblink_disconnect('link');
+END LOOP;
+
+--- Output&Log
+out.lib_log := jdd||' importé';
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+PERFORM hub_log (libSchema_to, out);RETURN next out;
+
+END;$BODY$ LANGUAGE plpgsql;
+
+
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_connect_ref
