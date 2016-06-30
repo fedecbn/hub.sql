@@ -21,7 +21,10 @@
 /*-- SELECT * FROM siflore_hub_pull('94.23.218.10','5433','si_flore_national','user','mdp'); ancienne version*/ 
 -- SELECT * FROM siflore_hub_pull('si_flore_national','5433');
 
---- 6. Mise à jour des données SI FLORE
+--- 6. Mise à jour de la tables taxons
+-- SELECT * FROM siflore_taxon_refresh();
+
+--- 7. Mise à jour des données SI FLORE
 -- SELECT * FROM siflore_data_refresh();
 -------------------------------------------------------------
 -------------------------------------------------------------
@@ -124,6 +127,13 @@ DROP INDEX IF EXISTS cd_taxsup4_7_idk;CREATE INDEX cd_taxsup4_7_idk ON exploitat
 DROP INDEX IF EXISTS cd_taxsup_7_idk;CREATE INDEX cd_taxsup_7_idk ON exploitation.taxref_v7_new USING btree (cd_taxsup);
 -- Table: exploitation.taxons
 CREATE TABLE exploitation.taxons(cd_ref integer NOT NULL, nom_complet text NOT NULL,  rang character varying,  type character varying,  CONSTRAINT taxons_new_pkey PRIMARY KEY (cd_ref, nom_complet));
+-- Table: exploitation.taxons_communs
+CREATE TABLE exploitation.taxons_communs(  cd_ref integer NOT NULL,  nom_complet character varying,  taxons_communs_ss_inf character varying,  taxons_communs_av_inf character varying,  CONSTRAINT pk_taxons_communs PRIMARY KEY (cd_ref));
+-- TAbles : les synthèses
+CREATE TABLE exploitation.synthese_taxon_comm(cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
+CREATE TABLE exploitation.synthese_taxon_fr10(cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
+CREATE TABLE exploitation.synthese_taxon_fr5  (cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
+
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
@@ -193,7 +203,7 @@ WHEN opt = 'drop' THEN
 ELSE out.lib_log := 'Paramètre incorrecte';
 END CASE;
 --- Log
-out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN NEXT out;
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_right';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
