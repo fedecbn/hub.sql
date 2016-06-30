@@ -1719,6 +1719,35 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- Nom : hub_agg_refresh
+--- Description : met à jour les données dans le schema aggrégation
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_agg_refresh () RETURNS setof zz_log AS 
+$BODY$ 
+DECLARE out zz_log%rowtype;
+DECLARE out_maj twocol%rowtype;
+BEGIN
+--- Variable
+--- Commande
+-- 0. pour tous les jeux de données nouvellement poussées...
+FOR out_maj IN SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log
+	WHERE typ_log = 'hub_push' AND date_log >= current_date -1 AND lib_log LIKE 'Données poussées%'
+	GROUP BY lib_schema, nb_occurence ORDER BY lib_schema
+	LOOP
+	-- 1. ...  on pousse les nouvelles données des schema CBN vers le schema agrégation , partie temp puis propre
+	EXECUTE 'SELECT * FROM hub_push('''||out_maj.col1||''','''||out_maj.col2||''', ''replace'', 2)';
+	EXECUTE 'SELECT * FROM hub_push(''agregation'','''||out_maj.col2||''', ''add'', 1);';
+	-- 2. ... on nettoie les données dans le schema agrégation , partie temp 
+	EXECUTE 'SELECT * FROM hub_clear(''agregation'','''||out_maj.col2||''');';
+	-- log
+	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_agg_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||out_maj.col2; PERFORM hub_log ('public', out); RETURN next out;
+END LOOP;
+
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 --- Nom : hub_runfc
 --- Description : Lancer successivement une fonction pour chaque cbn
 ---------------------------------------------------------------------------------------------------------
