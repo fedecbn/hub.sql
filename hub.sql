@@ -1472,7 +1472,7 @@ FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '
 		ELSIF (typChamp = 'float') THEN --- un float
 			EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\-?\d+\.\d+$''' INTO compte;
 		ELSIF (typChamp = 'date') THEN --- une date
-			EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^[0-2][0-9]{2}[0-9]\-(0[1-9]|1[0-2])\-(0[1-9]|1[0-9]|2[0-9]|30|31)$'' OR "'||libChamp||'" LIKE ''0000-%''' INTO compte;
+			EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE hub_verif_date('||libChamp||') IS FALSE' INTO compte;
 		ELSIF (typChamp = 'boolean') THEN --- Boolean
 			EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^t$'' AND "'||libChamp||'" !~ ''^f$''' INTO compte;
 		ELSE --- le reste
@@ -1590,7 +1590,7 @@ CASE WHEN (typVerif = 'type' OR typVerif = 'all') THEN
 			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\-?\d+\.\d+$'''
 			LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'date') THEN --- une date
-			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^[0-2][0-9]{2}[0-9]\-(0[1-9]|1[0-2])\-(0[1-9]|1[0-9]|2[0-9]|30|31)$'' OR "'||libChamp||'" LIKE ''0000-%'''
+			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE hub_verif_date('||libChamp||') IS FALSE'
 			LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'boolean') THEN --- Boolean
 			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^t$'' AND "'||libChamp||'" !~ ''^f$'''
@@ -1871,6 +1871,20 @@ END CASE;
 EXECUTE cmd;
 RETURN 'OK';
 END;$BODY$ LANGUAGE plpgsql;
+
+
+CREATE OR REPLACE FUNCTION hub_verif_date (date varchar) returns boolean as $$
+begin
+     if ($1 is null) then
+         return FALSE;
+     end if;
+     PERFORM $1::date;
+     return TRUE;
+exception when others then
+     return FALSE;
+end;
+$$ language plpgsql;
+
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
