@@ -237,6 +237,35 @@ FROM exploitation.taxref_v'||version||'_new;';
 out.lib_log := 'Taxref OK pour la version '||version;out.lib_schema := '-';out.lib_table := 'exploitation.taxref_v'||version||'_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
+
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
+--- Fonction siflore_taxon_refresh
+--- Description : Mise à jour de la liste des taxons
+--------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_taxon_refresh() RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+BEGIN 
+--- exploitation.taxon
+TRUNCATE exploitation.taxons; 
+INSERT INTO exploitation.taxons 
+SELECT a.cd_ref::integer, nom_ent_ref, z.rang, 
+CASE WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste' WHEN liste_bryo IS FALSE AND bryophyta IS TRUE THEN 'bryo_pas_liste' WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' ELSE 'problème' END as type
+FROM hub.observation a
+JOIN exploitation.taxref_v7_new z ON a.cd_ref::integer = z.cd_ref
+GROUP BY a.cd_ref, nom_ent_ref, z.rang, liste_bryo, bryophyta;
+--- exploitation.taxon_commune
+/*
+TRUNCATE exploitation.taxons_communs; 
+INSERT INTO exploitation.taxons_communs SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons_communs') as t1(cd_ref integer , nom_complet character varying,  taxons_communs_ss_inf character varying, taxons_communs_av_inf character varying);
+*/
+--- Log
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_taxon_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = '-'; PERFORM hub_log ('public', out); RETURN next out;
+END; $BODY$ LANGUAGE plpgsql;
+
 -------------------------------------------------------------
 -------------------------------------------------------------
 --------------------------------
