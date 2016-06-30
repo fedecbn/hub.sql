@@ -13,14 +13,15 @@
 -- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','fsd');
 -- SELECT * FROM hub_admin_clone('hub');
 
---- 3. Création de la version SI FLORE de taxref (avec les nouvelles colonnées
+--- 4. Création de la version SI FLORE de taxref (avec les nouvelles colonnées
 -- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','taxref_v7');
 -- SELECT * FROM siflore_taxref_refresh(7);
 
---- 4. Import des nouvelles données dans le hub du SI FLORE
--- SELECT * FROM siflore_hub_pull('94.23.218.10','5433','si_flore_national','user','mdp');
+--- 5. Import des nouvelles données dans le hub du SI FLORE despuis le Hub FCBN
+/*-- SELECT * FROM siflore_hub_pull('94.23.218.10','5433','si_flore_national','user','mdp'); ancienne version*/ 
+-- SELECT * FROM siflore_hub_pull('si_flore_national','5433');
 
---- 5. Mise à jour des données SI FLORE
+--- 6. Mise à jour des données SI FLORE
 -- SELECT * FROM siflore_data_refresh();
 -------------------------------------------------------------
 -------------------------------------------------------------
@@ -40,15 +41,12 @@ CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
 CREATE OR REPLACE FUNCTION siflore_clone() RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE ListUser varchar[];
-DECLARE oneUser varchar;
 DECLARE listFunction varchar[];
 DECLARE fonction varchar;
 DECLARE exist varchar;
 DECLARE base_source varchar;
 BEGIN
 /*variables*/
-ListUser = ARRAY['cbn_c_interface','cbn_med_interface','cbn_bl_interface','cbn_bp_interface','cbn_alp_interface','cbn_mc_interface','cbn_fc_interface','cbn_mas_interface','cbn_b_interface','a_just_interface','j_gourvil_interface','m_decherf_interface','j_millet_interface','r_gaspard_interface','i_mandon_interface','cbn_sa_interface','cbn_pmp_interface','plateforme_siflore','lecteur_masao'];
 base_source = 'si_flore_national_v3';
 
 -- Fonctions utilisées par le siflore
@@ -154,18 +152,50 @@ CREATE TABLE observation_reunion.observation_maille_utm10(  id_flore_fcbn charac
 -- Table: observation_reunion.observation_commune_reunion
 CREATE TABLE observation_reunion.observation_commune_reunion(  id_flore_fcbn character varying NOT NULL,  code_insee character varying NOT NULL,  type_localisation_commune character(1) NOT NULL,  type_rattachement_commune character(1) NOT NULL,  remarque_lieu character varying,  referentiel_communal character varying NOT NULL,  departement character(3),  id serial NOT NULL,  CONSTRAINT observation_commune_reunion_pkey PRIMARY KEY (id_flore_fcbn, code_insee),  CONSTRAINT observation_commune_reunion_code_insee_fkey FOREIGN KEY (code_insee)      REFERENCES observation_reunion.communes_bdtopo_reunion (code_insee) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_id_flore_fcbn_fkey FOREIGN KEY (id_flore_fcbn)      REFERENCES observation_reunion.observation_taxon_reunion (id_flore_fcbn) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_type_localisation_commune_fkey FOREIGN KEY (type_localisation_commune)      REFERENCES observation.type_localisation (type_localisation) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_type_rattachement_commune_fkey FOREIGN KEY (type_rattachement_commune)      REFERENCES observation.type_rattachement (type_rattachement) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION);
 
-/*Gestion des droits*/
-FOREACH oneUser IN ARRAY ListUser LOOP
-	EXECUTE 'GRANT USAGE ON SCHEMA exploitation TO "'||oneUser||'";';
-	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA exploitation TO "'||oneUser||'";';
-	EXECUTE 'GRANT USAGE ON SCHEMA observation TO "'||oneUser||'";';
-	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA observation TO "'||oneUser||'";';
-	EXECUTE 'GRANT USAGE ON SCHEMA observation_reunion TO "'||oneUser||'";';
-	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA observation_reunion TO "'||oneUser||'";';
-END LOOP;
 --- Log
 out.lib_log := 'Siflore créé';out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
+
+
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
+--- Fonction : siflore_right
+--- Description : Met à jour taxref en fonction de la version souhaité - aujourd'hui ajout de taxref_v7_new
+--------------------------------
+-------------------------------------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_right(opt varchar = 'add', this_user varchar = null) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE ListUser varchar[];
+DECLARE oneUser varchar;
+BEGIN
+CASE WHEN user IS NOT null THEN
+	ListUser = ARRAY['cbn_c_interface','cbn_med_interface','cbn_bl_interface','cbn_bp_interface','cbn_alp_interface','cbn_mc_interface','cbn_fc_interface','cbn_mas_interface','cbn_b_interface','a_just_interface','j_gourvil_interface','m_decherf_interface','j_millet_interface','r_gaspard_interface','i_mandon_interface','cbn_sa_interface','cbn_pmp_interface','plateforme_siflore','lecteur_masao'];
+ELSE ListUser = ARRAY [this_user];
+END CASE;
+/*Gestion des droits*/
+CASE WHEN opt = 'add' THEN
+FOREACH oneUser IN ARRAY ListUser LOOP
+	EXECUTE 'GRANT CONNECT ON DATABASE si_flore_national_v4 TO '||oneUser||';';
+	EXECUTE 'GRANT USAGE ON SCHEMA exploitation TO '||oneUser||';';
+	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA exploitation TO '||oneUser||';';
+	EXECUTE 'GRANT USAGE ON SCHEMA observation TO '||oneUser||';';
+	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA observation TO '||oneUser||';';
+	EXECUTE 'GRANT USAGE ON SCHEMA observation_reunion TO '||oneUser||';';
+	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA observation_reunion TO '||oneUser||';';
+	out.lib_log := 'user supprimé';
+END LOOP;
+WHEN opt = 'drop' THEN
+	EXECUTE 'REVOKE ALL PRIVILEGES ON DATABASE si_flore_national_v4 TO '||oneUser||';';
+	out.lib_log := 'user supprimé';
+ELSE out.lib_log := 'Paramètre incorrecte';
+END CASE;
+--- Log
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN NEXT out;
+END; $BODY$ LANGUAGE plpgsql;
+
 
 -------------------------------------------------------------
 -------------------------------------------------------------
@@ -215,7 +245,8 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_hub_pull(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar) RETURNS setof zz_log AS 
+-- CREATE OR REPLACE FUNCTION siflore_hub_pull(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_hub_pull(dbname varchar, port varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE out_maj twocol%rowtype;
@@ -223,7 +254,8 @@ DECLARE connction varchar;
 DECLARE cmd varchar;
 BEGIN 
 --- Variable
-connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
+--connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
+connction = 'dbname='||dbname||' port='||port;
 --- Commande
 -- 0. pour tous les jeux de données nouvellement poussées...
 cmd = 'SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log
@@ -233,7 +265,8 @@ cmd = 'SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log
 FOR out_maj IN EXECUTE 'SELECT * from dblink('''||connction||''', '''||cmd||''') as t1 (cbn varchar, jdd varchar);'
 	LOOP
 	-- 1. ... on récupère sur le SI FLORE les données du Hub FCBN - schéma agrégation
-	EXECUTE 'SELECT * FROM hub_connect('''||hote||''', '''|port||''','''||dbname||''','''||utilisateur||''','''||mdp||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
+	--EXECUTE 'SELECT * FROM hub_connect('''||hote||''', '''|port||''','''||dbname||''','''||utilisateur||''','''||mdp||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
+	EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
 	-- 2. ... (SIFLORE) on pousse les données dans le hub SI FLORE.
 	EXECUTE 'SELECT * FROM hub_push(''hub'','''||out_maj.col2||''', ''add'');';
 	-- 3. ... (SIFLORE) on nettoie les données dans le hub SI FLORE
@@ -335,7 +368,7 @@ CASE WHEN flag = 1 THEN
 	obs.cd_jdd||''_''||cd_obs_mere as id_flore_fcbn,
 	cd_ref::integer as cd_ref, 
 	nom_ent_ref as nom_complet, 
-	cd_ent_mere::integer as code_taxon_mere,
+	cd_ent_mere as code_taxon_mere,
 	null as referentiel_mere,
 	nom_ent_mere as nom_taxon_mere,
 	nom_ent_orig as nom_taxon_originel, 
@@ -372,12 +405,14 @@ CASE WHEN flag = 1 THEN
 	statut_pop,
 	null as nom_observateur,
 	null as prenom_observateur,
-	string_agg(lib_orgm,'','') as libelle_organisme,
-	string_agg(nom_acteur,'','') as observateur
+	--string_agg(lib_orgm,'','') as libelle_organisme,
+	--string_agg(nom_acteur,'','') as observateur
+	''à mettre à jour'' as libelle_organisme,
+	''à mettre à jour'' as observateur
 	FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.releve_acteur act ON rel.cd_jdd = act.cd_jdd AND rel.cd_releve = act.cd_releve
+	-- JOIN hub.releve_acteur act ON rel.cd_jdd = act.cd_jdd AND rel.cd_releve = act.cd_releve
 	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
 	'||jointure_geo||'
 	JOIN ref.voca_ctrl stp ON stp.cd_champ = ''statut_pop'' AND stp.code_valeur = statut_pop::varchar
@@ -387,13 +422,13 @@ CASE WHEN flag = 1 THEN
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = ''confiance_geo'' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = ''moyen_geo'' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = '''||typ_geo||'''
-	AND typ_acteur = ''obs'' 
+	-- AND typ_acteur = ''obs'' 
 	AND meta.cd_jdd = '''||cd_jdd||'''
 	AND cd_validite = 1
-	GROUP BY obs.cd_jdd,'||champ_geo||'cd_obs_mere,cd_ref,nom_ent_ref,cd_ent_mere,nom_ent_mere,nom_ent_orig ,obs.rmq,stp.libelle_valeur,lib_jdd,prp.libelle_valeur,lib_jdd_orig, cd_obs_orig,ntd.libelle_valeur,rel.rmq,ter.rmq,tso.libelle_valeur,cd_biblio,lib_biblio,cd_herbier,lib_herbier,date_debut,date_fin,statut_pop;';
+	;';
 	EXECUTE cmd;
 	out.lib_log = partie||' - '||cd_jdd||' transféré';
-	--out.lib_log = cmd;
+	out.lib_log = cmd;
 WHEN flag = 2 THEN
 	cmd = 'DELETE FROM observation_reunion.'||tabl||' WHERE id_flore_fcbn LIKE '''||cd_jdd||'_%'';
 	INSERT INTO observation_reunion.'||tabl||'
@@ -471,5 +506,3 @@ out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log :=
 --PERFORM hub_log ('public', out); 
 RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
-
-SELECT * FROM siflore_data_refresh();
