@@ -1228,11 +1228,11 @@ DECLARE nothing varchar;
 
 BEGIN
 --- Variables Jdd
-CASE WHEN jdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
-	WHEN jdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
+CASE WHEN jdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'table_name LIKE ''observation%'' OR table_name LIKE ''releve%'''; flag := 1;
+	WHEN jdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'table_name LIKE ''entite%'''; flag := 1;
 	ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
-		CASE WHEN typJdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'observation'; flag := 1;
-			WHEN typJdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'entite'; flag := 1;
+		CASE WHEN typJdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'table_name LIKE ''observation%'' OR table_name LIKE ''releve%'''; flag := 1;
+			WHEN typJdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'table_name LIKE ''entite%'''; flag := 1;
 			ELSE flag := 0;
 		END CASE;
 	END CASE;
@@ -1249,7 +1249,7 @@ CASE WHEN flag = 1 THEN
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
-	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE '''||tableRef||'%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
+	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE '||tableRef||' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
 		ct = ct+1;
 		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
