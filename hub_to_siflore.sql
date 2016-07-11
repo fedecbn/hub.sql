@@ -118,24 +118,20 @@ DROP INDEX IF EXISTS cd_taxsup3_5_idk;CREATE INDEX cd_taxsup3_5_idk ON exploitat
 DROP INDEX IF EXISTS cd_taxsup4_5_idk;CREATE INDEX cd_taxsup4_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup4);
 DROP INDEX IF EXISTS cd_taxsup_5_idk;CREATE INDEX cd_taxsup_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup);
 EXECUTE 'INSERT INTO exploitation.taxref_v5_new SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.taxref_v5_new;'') as t1(cd_ref integer,  nom_complet character varying,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean,  bryophyta boolean,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer)';
--- Table: exploitation.taxref_v7
-CREATE TABLE exploitation.taxref_v7_new (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_v7_pkey PRIMARY KEY (cd_ref, nom_complet));
-DROP INDEX IF EXISTS cd_ref_7_idk;CREATE INDEX cd_ref_7_idk  ON exploitation.taxref_v7_new  USING btree (cd_ref);
-DROP INDEX IF EXISTS cd_taxsup2_7_idk;CREATE INDEX cd_taxsup2_7_idk ON exploitation.taxref_v7_new USING btree (cd_taxsup2);
-DROP INDEX IF EXISTS cd_taxsup3_7_idk;CREATE INDEX cd_taxsup3_7_idk ON exploitation.taxref_v7_new USING btree (cd_taxsup3);
-DROP INDEX IF EXISTS cd_taxsup4_7_idk;CREATE INDEX cd_taxsup4_7_idk ON exploitation.taxref_v7_new USING btree (cd_taxsup4);
-DROP INDEX IF EXISTS cd_taxsup_7_idk;CREATE INDEX cd_taxsup_7_idk ON exploitation.taxref_v7_new USING btree (cd_taxsup);
 -- Table: exploitation.taxons
 CREATE TABLE exploitation.taxons(cd_ref integer NOT NULL, nom_complet text NOT NULL,  rang character varying,  type character varying,  CONSTRAINT taxons_new_pkey PRIMARY KEY (cd_ref, nom_complet));
 -- Table: exploitation.taxons_communs
 CREATE TABLE exploitation.taxons_communs(  cd_ref integer NOT NULL,  nom_complet character varying,  taxons_communs_ss_inf character varying,  taxons_communs_av_inf character varying,  CONSTRAINT pk_taxons_communs PRIMARY KEY (cd_ref));
--- TAbles : les synthèses
+-- Table : les synthèses
 CREATE TABLE exploitation.synthese_taxon_comm(cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
 CREATE TABLE exploitation.synthese_taxon_fr10(cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
 CREATE TABLE exploitation.synthese_taxon_fr5  (cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
 --CREATE TABLE exploitation.synthese_maille_fr10( cd_sig character varying,  nb_taxons integer,  nb_obs integer,  nb_obs_1500_1980 integer,  nb_obs_1981_2000 integer,  nb_obs_2001_2013 integer,  nb_obs_averee integer,  nb_obs_interpretee integer,  date_premiere_obs date,  date_derniere_obs date,  geom geometry(MultiPolygon,2154),  gid integer,  CONSTRAINT synthese_maille_fr10_pkey PRIMARY KEY (cd_sig));
-CREATE TABLE exploitation.information_taxa_taxons(  cd_ref text,  famille text,  nom_sci text,  cd_rang text,  "national" text,  alsace text,  aquitaine text,  auvergne text,  basse_normandie text,  bourgogne text,  bretagne text,  centre text,  champagne_ardenne text,  corse text,  franche_comte text,  haute_normandie text,  ile_de_france text,  languedoc_roussillon text,  limousin text,  lorraine text,  midi_pyrenees text,  nord_pas_de_calais text,  pays_de_la_loire text,  picardie text,  poitou_charentes text,  paca text,  rhone_alpes text);
-CREATE TABLE exploitation.information_taxons(  cd_ref integer,  nom_complet character varying,  url text,  num_nom_tela character varying,  num_nom_retenu_tela character varying,  nom_sci character varying,  cd_nom integer);
+CREATE TABLE exploitation.information_taxa_taxons(cd_ref text,  famille text,  nom_sci text,  cd_rang text,  "national" text,  alsace text,  aquitaine text,  auvergne text,  basse_normandie text,  bourgogne text,  bretagne text,  centre text,  champagne_ardenne text,  corse text,  franche_comte text,  haute_normandie text,  ile_de_france text,  languedoc_roussillon text,  limousin text,  lorraine text,  midi_pyrenees text,  nord_pas_de_calais text,  pays_de_la_loire text,  picardie text,  poitou_charentes text,  paca text,  rhone_alpes text);
+CREATE TABLE exploitation.information_taxons(cd_ref integer,  nom_complet character varying,  url text,  num_nom_tela character varying,  num_nom_retenu_tela character varying,  nom_sci character varying,  cd_nom integer);
+--- Table : exploitation.lien_bdtfx_taxref
+CREATE TABLE exploitation.lien_bdtfx_taxref(num_nom character varying,num_nom_retenu character varying,nom_sci character varying,cd_nom integer,CONSTRAINT num_nom_pkey PRIMARY KEY (num_nom));
+EXECUTE 'INSERT INTO exploitation.lien_bdtfx_taxref SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.lien_bdtfx_taxref;'') as t1(a character,z character varying,e character varying,r character varying,t integer)';
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
@@ -674,4 +670,70 @@ END CASE;
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_push';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --PERFORM hub_log ('public', out); 
 RETURN next out;
+END; $BODY$ LANGUAGE plpgsql;
+
+
+
+
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
+--------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_synthese() RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+BEGIN 
+
+--Remplir la table synthese_taxon_comm contenant la synthese pour les taxons liées aux communes
+DROP TABLE exploitation.synthese_taxon_comm;
+CREATE TABLE exploitation.synthese_taxon_comm as
+SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
+	count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
+	count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
+	count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
+	count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
+	count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
+	min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
+FROM exploitation.obs_commune obs
+GROUP BY obs.cd_ref, obs.nom_complet;
+    
+--GRANT ALL ON TABLE exploitation.synthese_taxon_comm TO postgres;
+GRANT SELECT ON TABLE exploitation.synthese_taxon_comm TO lecteur_masao;
+
+ 
+--Remplir la table synthese_taxon_fr10 contenant la synthese pour les taxons liées aux mailles 10
+DROP TABLE exploitation.synthese_taxon_fr10;
+CREATE TABLE exploitation.synthese_taxon_fr10 as
+SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
+count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
+count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
+count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
+count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
+count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
+min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
+FROM exploitation.obs_maille_fr10 obs
+group by obs.cd_ref, obs.nom_complet;
+    
+--GRANT ALL ON TABLE exploitation.synthese_taxon_fr10 TO postgres;
+GRANT SELECT ON TABLE exploitation.synthese_taxon_fr10 TO lecteur_masao;
+
+--Remplir la table synthese_taxon_fr5 contenant la synthese pour les taxons liées aux mailles 5
+drop table exploitation.synthese_taxon_fr5;
+create table exploitation.synthese_taxon_fr5 as
+SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
+count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
+count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
+count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
+count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
+count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
+min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
+FROM exploitation.obs_maille_fr5 obs
+group by obs.cd_ref, obs.nom_complet;
+
+--GRANT ALL ON TABLE exploitation.synthese_taxon_fr5 TO postgres;
+GRANT SELECT ON TABLE exploitation.synthese_taxon_fr5 TO lecteur_masao;
+    
+--- Log
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = '-'; PERFORM hub_log ('public', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
