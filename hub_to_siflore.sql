@@ -134,7 +134,7 @@ CREATE TABLE exploitation.synthese_taxon_comm(cd_ref integer,  nom_complet chara
 CREATE TABLE exploitation.synthese_taxon_fr10(cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
 CREATE TABLE exploitation.synthese_taxon_fr5  (cd_ref integer,  nom_complet character varying,  nb_obs bigint,  nb_obs_1500_1980 bigint,  nb_obs_1981_2000 bigint,  nb_obs_2001_2013 bigint,  nb_obs_averee bigint,  nb_obs_interpretee bigint,  date_premiere_obs date,  date_derniere_obs date);
 --CREATE TABLE exploitation.synthese_maille_fr10( cd_sig character varying,  nb_taxons integer,  nb_obs integer,  nb_obs_1500_1980 integer,  nb_obs_1981_2000 integer,  nb_obs_2001_2013 integer,  nb_obs_averee integer,  nb_obs_interpretee integer,  date_premiere_obs date,  date_derniere_obs date,  geom geometry(MultiPolygon,2154),  gid integer,  CONSTRAINT synthese_maille_fr10_pkey PRIMARY KEY (cd_sig));
-CREATE TABLE exploitation.information_taxa_taxons(cd_ref text,  famille text,  nom_sci text,  cd_rang text,  "national" text,  alsace text,  aquitaine text,  auvergne text,  basse_normandie text,  bourgogne text,  bretagne text,  centre text,  champagne_ardenne text,  corse text,  franche_comte text,  haute_normandie text,  ile_de_france text,  languedoc_roussillon text,  limousin text,  lorraine text,  midi_pyrenees text,  nord_pas_de_calais text,  pays_de_la_loire text,  picardie text,  poitou_charentes text,  paca text,  rhone_alpes text);
+CREATE TABLE exploitation.information_taxa_taxons(cd_ref text,  famille text,  nom_sci text,  cd_rang text,  national text,  alsace text,  aquitaine text,  auvergne text,  basse_normandie text,  bourgogne text,  bretagne text,  centre text,  champagne_ardenne text,  corse text,  franche_comte text,  haute_normandie text,  ile_de_france text,  languedoc_roussillon text,  limousin text,  lorraine text,  midi_pyrenees text,  nord_pas_de_calais text,  pays_de_la_loire text,  picardie text,  poitou_charentes text,  paca text,  rhone_alpes text);
 CREATE TABLE exploitation.information_taxons(cd_ref integer,  nom_complet character varying,  url text,  num_nom_tela character varying,  num_nom_retenu_tela character varying,  nom_sci character varying,  cd_nom integer);
 --- Table : exploitation.lien_bdtfx_taxref
 CREATE TABLE exploitation.lien_bdtfx_taxref(num_nom character varying,num_nom_retenu character varying,nom_sci character varying,cd_nom integer,CONSTRAINT num_nom_pkey PRIMARY KEY (num_nom));
@@ -395,6 +395,44 @@ cmd = 'SELECT sub.uid, stt2 as statuts_nat FROM
 	GROUP BY sub.uid, statuts_nat
 	ORDER BY sub.uid;';
 EXECUTE 'INSERT INTO exploitation.stt_lr_nat_catnat SELECT * FROM dblink(''dbname='||dbname||''','''||cmd||''') as t1 (uid integer,statuts text)';
+flag = 1;
+ELSE END CASE;
+
+-- peuplement: info taxa
+CASE WHEN typ = 'taxa' OR typ = 'all' THEN
+TRUNCATE exploitation.information_taxa_taxons;
+INSERT INTO exploitation.information_taxa_taxons
+SELECT stt_lr_reg_catnat.cd_ref, stt_lr_reg_catnat.famille, stt_lr_reg_catnat.nom_sci, stt_lr_reg_catnat.cd_rang, stt_lr_nat_catnat.statuts_nat as "National",
+"Alsace" , "Aquitaine", "Auvergne", "Basse-Normandie", "Bourgogne", "Bretagne", "Centre", "Champagne-Ardenne", "Corse", "Franche-Comté", "Haute-Normandie", "Île-de-France", "Languedoc-Roussillon", 
+ "Limousin", "Lorraine",  "Midi-Pyrénées", "Nord-Pas-de-Calais", "Pays de la Loire", "Picardie", "Poitou-Charentes", "Provence-Alpes-Côte d'Azur", "Rhône-Alpes"
+FROM stt_lr_reg_catnat
+LEFT JOIN stt_lr_nat_catnat ON stt_lr_nat_catnat.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Alsace" FROM stt_lr_reg_catnat WHERE id_reg = 42) as a on a.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Aquitaine" FROM stt_lr_reg_catnat WHERE id_reg = 72) as b on b.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Auvergne" FROM stt_lr_reg_catnat WHERE id_reg = 83) as c on c.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Basse-Normandie" FROM stt_lr_reg_catnat WHERE id_reg = 25) as d on d.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Bourgogne" FROM stt_lr_reg_catnat WHERE id_reg = 26) as e on e.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Bretagne" FROM stt_lr_reg_catnat WHERE id_reg = 53) as f on f.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Centre" FROM stt_lr_reg_catnat WHERE id_reg = 24) as g on g.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Champagne-Ardenne" FROM stt_lr_reg_catnat WHERE id_reg = 21) as h on h.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Corse" FROM stt_lr_reg_catnat WHERE id_reg = 94) as i on i.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Franche-Comté" FROM stt_lr_reg_catnat WHERE id_reg = 43) as j on j.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Haute-Normandie" FROM stt_lr_reg_catnat WHERE id_reg = 23) as m on m.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Île-de-France" FROM stt_lr_reg_catnat WHERE id_reg = 11) as n on n.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Languedoc-Roussillon" FROM stt_lr_reg_catnat WHERE id_reg = 91) as o on o.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Limousin" FROM stt_lr_reg_catnat WHERE id_reg = 74) as q on q.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Lorraine" FROM stt_lr_reg_catnat WHERE id_reg = 41) as r on r.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Midi-Pyrénées" FROM stt_lr_reg_catnat WHERE id_reg = 73) as u on u.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Nord-Pas-de-Calais" FROM stt_lr_reg_catnat WHERE id_reg = 31) as v on v.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Pays de la Loire" FROM stt_lr_reg_catnat WHERE id_reg = 52) as w on w.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Picardie" FROM stt_lr_reg_catnat WHERE id_reg = 22) as x on x.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Poitou-Charentes" FROM stt_lr_reg_catnat WHERE id_reg = 54) as y on y.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Provence-Alpes-Côte d'Azur" FROM stt_lr_reg_catnat WHERE id_reg = 93) as z on z.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Rhône-Alpes" FROM stt_lr_reg_catnat WHERE id_reg = 82) as aa on aa.uid=stt_lr_reg_catnat.uid
+GROUP BY stt_lr_reg_catnat.cd_ref, stt_lr_reg_catnat.famille, stt_lr_reg_catnat.nom_sci, stt_lr_reg_catnat.cd_rang, "National",
+"Alsace" , "Aquitaine", "Auvergne", "Basse-Normandie", "Bourgogne", "Bretagne", "Centre", "Champagne-Ardenne", "Corse", "Franche-Comté", "Haute-Normandie", "Île-de-France", "Languedoc-Roussillon", 
+ "Limousin", "Lorraine", "Midi-Pyrénées", "Nord-Pas-de-Calais", "Pays de la Loire", "Picardie", "Poitou-Charentes", "Provence-Alpes-Côte d'Azur", "Rhône-Alpes"
+ORDER BY nom_sci;
 flag = 1;
 ELSE END CASE;
 
