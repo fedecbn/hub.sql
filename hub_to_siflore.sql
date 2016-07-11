@@ -1,31 +1,43 @@
 ﻿-------------------------------------------------------------
 -------------------------------------------------------------
---- Pas à pas pour la mise à jour du SI FLORE
-
---- 1. Création de la base de données
+--- Pas à pas pour la création du SI FLORE
+-------------------------------------------------------------
+--- 1. Création de la base de données SI FLORE
 -- CREATE DATABASE si_flore_national_v4 OWNER user ENCODING 'UTF-8';
-
---- 2. Création de la structure de la base de données SI FLORE
 -- SELECT * FROM siflore_clone();
 
---- 3. Création d'un hub pour récupérer les données
--- récupérer les fonction du hub avec hub.sql
--- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','fsd');
+--- 2. Création d'un hub pour récupérer les données
+-- !! récupérer les fonction du hub en lançant hub.sql !!
+-- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','fsd'); --- récupération du Format standard de données
 -- SELECT * FROM hub_admin_clone('hub');
 
---- 4. Création de la version SI FLORE de taxref (avec les nouvelles colonnées
--- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','taxref_v7');
--- SELECT * FROM siflore_taxref_refresh(7);
+--- 3. Création/mise à jour des référentiels utilisés
+-- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','taxref_v7'); --- récupération de TAXREF v7
+-- SELECT * FROM siflore_ref_refresh();
 
---- 5. Import des nouvelles données dans le hub du SI FLORE despuis le Hub FCBN
-/*-- SELECT * FROM siflore_hub_pull('94.23.218.10','5433','si_flore_national','user','mdp'); ancienne version*/ 
+--- 4. Ajout/mise à jour des utilisateurs 
+--- SELECT * FROM siflore_right();
+
+-------------------------------------------------------------
+-------------------------------------------------------------
+--- Pas à pas pour la mise à jour des données dans le SI FLORE ---
+-------------------------------------------------------------
+--- 1. Import des nouvelles données (HUB FCBN => HUB SI FLORE)
 -- SELECT * FROM siflore_hub_pull('si_flore_national','5433');
 
---- 6. Mise à jour de la tables taxons
--- SELECT * FROM siflore_taxon_refresh();
-
---- 7. Mise à jour des données SI FLORE
+--- 2. Mise à jour des données SI FLORE (HUB SI FLORE => exploitation)
 -- SELECT * FROM siflore_data_refresh();
+
+--- 3. Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
+-- SELECT * FROM siflore_ref_refresh('listx');
+-- SELECT * FROM siflore_synthese_refresh();
+--- ou 
+-- SELECT * FROM siflore_synthese_refresh('com');
+-- SELECT * FROM siflore_synthese_refresh('m10');
+-- SELECT * FROM siflore_synthese_refresh('m5');
+-- SELECT * FROM siflore_synthese_refresh('lr_reg');
+-- SELECT * FROM siflore_synthese_refresh('lr_nat');
+-- SELECT * FROM siflore_synthese_refresh('taxa');
 -------------------------------------------------------------
 -------------------------------------------------------------
 
