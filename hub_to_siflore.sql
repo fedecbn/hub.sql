@@ -141,7 +141,8 @@ CREATE TABLE exploitation.lien_bdtfx_taxref(num_nom character varying,num_nom_re
 EXECUTE 'INSERT INTO exploitation.lien_bdtfx_taxref SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.lien_bdtfx_taxref;'') as t1(a character,z character varying,e character varying,r character varying,t integer)';
 --- Table : exploitation.stt_lr_reg_catnat
 CREATE TABLE exploitation.stt_lr_reg_catnat(uid integer NOT NULL,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer NOT NULL,statuts text,CONSTRAINT stt_lr_reg_catnat_pkey PRIMARY KEY (uid, id_reg));
-
+--- Table : exploitation.stt_lr_nat_catnat
+CREATE TABLE exploitation.stt_lr_nat_catnat(uid integer NOT NULL,statuts_nat text,CONSTRAINT stt_lr_nat_catnat_pkey PRIMARY KEY (uid));
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
@@ -317,9 +318,9 @@ END; $BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION siflore_synthese_refresh(typ varchar = 'all') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE out cmd varchar;
-DECLARE out dbname varchar;
-DECLARE out flag integer;
+DECLARE cmd varchar;
+DECLARE dbname varchar;
+DECLARE flag integer;
 BEGIN 
 --- variable
 flag = 0;
@@ -374,18 +375,26 @@ ELSE END CASE;
     
 
 -- peuplement: stt_lr_reg_catnat
-
 CASE WHEN typ = 'lr_reg' OR typ = 'all' THEN
 cmd = 'SELECT reg.uid, cd_ref, famille, nom_sci, cd_rang, reg.id_reg, CASE WHEN stt2 IS NULL THEN ''-'' ELSE stt2 END as statuts 
-FROM (
-	SELECT uid, cd_ref, famille, nom_sci, cd_rang, id_reg FROM referentiels.regions CROSS JOIN catnat.taxons_nat) as reg
+	FROM (SELECT uid, cd_ref, famille, nom_sci, cd_rang, id_reg FROM referentiels.regions CROSS JOIN catnat.taxons_nat) as reg
 	LEFT JOIN  (SELECT sr.uid, sr.id_reg, CASE WHEN lr IS NULL THEN ''-'' ELSE lr END as stt2
 		FROM catnat.taxons_nat tn
 		LEFT JOIN catnat.statut_reg sr ON tn.uid = sr.uid
 		LEFT JOIN (SELECT uid, id_reg, id_statut as lr FROM catnat.statut_reg WHERE type_statut = ''LR'') 
 		as two on two.uid = sr.uid AND two.id_reg = sr.id_reg
-	GROUP BY sr.uid, sr.id_reg, stt2) as stt ON reg.id_reg = stt.id_reg AND reg.uid = stt.uid;'
+	GROUP BY sr.uid, sr.id_reg, stt2) as stt ON reg.id_reg = stt.id_reg AND reg.uid = stt.uid;';
 EXECUTE 'INSERT INTO exploitation.stt_lr_reg_catnat SELECT * FROM dblink(''dbname='||dbname||''','''||cmd||''') as t1 (uid integer,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer,statuts text)';
+flag = 1;
+ELSE END CASE;
+
+-- peuplement: stt_lr_nat_catnat
+CASE WHEN typ = 'lr_nat' OR typ = 'all' THEN
+cmd = 'SELECT sub.uid, stt2 as statuts_nat FROM 
+	(SELECT sn.uid, CASE WHEN lr = ''à évaluer'' THEN ''-'' ELSE lr END as stt2 FROM catnat.statut_nat sn) as sub
+	GROUP BY sub.uid, statuts_nat
+	ORDER BY sub.uid;';
+EXECUTE 'INSERT INTO exploitation.stt_lr_nat_catnat SELECT * FROM dblink(''dbname='||dbname||''','''||cmd||''') as t1 (uid integer,statuts text)';
 flag = 1;
 ELSE END CASE;
 
