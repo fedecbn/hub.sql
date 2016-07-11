@@ -228,7 +228,7 @@ DROP INDEX IF EXISTS cd_ref_idk;CREATE INDEX cd_ref_idk  ON exploitation.taxref 
 DROP INDEX IF EXISTS cd_taxsup2_idk;CREATE INDEX cd_taxsup2_idk ON exploitation.taxref USING btree (cd_taxsup2);
 DROP INDEX IF EXISTS cd_taxsup3_idk;CREATE INDEX cd_taxsup3_idk ON exploitation.taxref USING btree (cd_taxsup3);
 DROP INDEX IF EXISTS cd_taxsup4_idk;CREATE INDEX cd_taxsup4_idk ON exploitation.taxref USING btree (cd_taxsup4);
-DROP INDEX IF EXISTS cd_taxsup_idk;CREATE INDEX cd_taxsup_idk ON exploitation.taxref USING btree (cd_taxsup);
+DROP INDEX IF EXISTS cd_taxsup_idk ;CREATE INDEX cd_taxsup_idk  ON exploitation.taxref USING btree (cd_taxsup);
 
 /*Alimentation de la table taxref*/
 EXECUTE '
@@ -266,21 +266,48 @@ CREATE OR REPLACE FUNCTION siflore_taxon_refresh() RETURNS setof zz_log AS
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN 
---- exploitation.taxon
+--- exploitation.taxon : version Thomas
 TRUNCATE exploitation.taxons; 
 INSERT INTO exploitation.taxons 
 SELECT a.cd_ref::integer, nom_ent_ref, z.rang, 
-CASE WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste' WHEN liste_bryo IS FALSE AND bryophyta IS TRUE THEN 'bryo_pas_liste' WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' ELSE 'problème' END as type
+CASE 	WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste' 
+	WHEN liste_bryo IS FALSE AND bryophyta IS TRUE THEN 'bryo_pas_liste' 
+	WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' 
+	ELSE 'problème' END as type
 FROM hub.observation a
-JOIN exploitation.taxref_v7_new z ON a.cd_ref::integer = z.cd_ref
+JOIN exploitation.taxref z ON a.cd_ref::integer = z.cd_ref
 GROUP BY a.cd_ref, nom_ent_ref, z.rang, liste_bryo, bryophyta;
+
+--- exploitation.taxon : Version Anaïs
 /*
 TRUNCATE exploitation.taxons;
-INSERT INTO exploitation.taxons SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons') as t1(cd_ref integer , nom_complet character varying,  rang character varying, type character varying);
-
+INSERT INTO exploitation.taxons
+SELECT all_tax.cd_ref, all_tax.nom_complet, all_tax.rang, 
+CASE 	WHEN (all_tax.bryophyta=true and all_tax.liste_bryo=true) THEN 'bryo_liste' 
+	WHEN (all_tax.bryophyta=true and all_tax.liste_bryo=false) THEN 'bryo_pas_liste' 
+	WHEN (all_tax.bryophyta=false) THEN 'tracheo' 
+	ELSE 'non connu' END as "type"
+FROM
+(
+WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS 
+(
+  SELECT cd_ref, nom_complet, cd_taxsup, rang, liste_bryo, bryophyta
+    FROM exploitation.taxref_v7_new WHERE cd_ref::text  in (select distinct obs.cd_ref from hub.observation obs)
+  UNION
+  SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang, e.liste_bryo,e.bryophyta
+    FROM hierarchie AS h, exploitation.taxref_v7_new AS e 
+    WHERE h.cd_taxsup = e.cd_ref
+)
+SELECT cd_ref, nom_complet, rang, liste_bryo, bryophyta FROM hierarchie order by nom_complet
+) all_tax order by nom_complet;
 */
---- exploitation.taxon_commune
+
+---- ARCHIVE
 /*
+--- exploitation.taxons
+TRUNCATE exploitation.taxons;
+INSERT INTO exploitation.taxons SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons') as t1(cd_ref integer , nom_complet character varying,  rang character varying, type character varying);
+--- exploitation.taxon_commune
 TRUNCATE exploitation.taxons_communs; 
 INSERT INTO exploitation.taxons_communs SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons_communs') as t1(cd_ref integer , nom_complet character varying,  taxons_communs_ss_inf character varying, taxons_communs_av_inf character varying);
 */
@@ -383,12 +410,9 @@ BEGIN
 --- Les communes
 TRUNCATE exploitation.obs_commune;
 INSERT INTO exploitation.obs_commune
-SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, 	nom_ent_ref as nom_complet, 	cd_ent_mere as code_taxon_mere,	null as referentiel_mere,	nom_ent_mere as nom_taxon_mere,	nom_ent_orig as nom_taxon_originel, 
-	obs.rmq as remarque_taxon,	stp.libelle_valeur as libelle_statut_pop, 	lib_jdd as libelle_court_bd_mere, 	prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, 	cd_obs_orig as id_flore_source, 
-	rel.rmq as remarque_donnee_mere,	ntd.libelle_valeur as libelle_nature_date,	rel.rmq as remarque_date, 	ter.rmq as remarque_lieu,	tso.libelle_valeur as libelle_type_source,	null as type_doc,
-	cd_biblio as cote_biblio_cbn,	lib_biblio as titre_doc,	null as annee_doc,	null as auteur_doc,	null as ref_doc,	null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,	cd_herbier as code_herbier,
-	lib_herbier as nom_herbier,	null as part_herbier,	null as id_part,	null as cote_biblio_bd_mere,	date_debut::date as date_debut_obs,	date_fin::date as date_fin_obs,	null as date_transmission,	cd_ent_mere as id_flore_mere,
-	cfg.libelle_valeur, mog.libelle_valeur,cd_geo, lib_geo, com.geom,	statut_pop,	null as nom_observateur,	null as prenom_observateur,	'à mettre à jour' as libelle_organisme,	'à mettre à jour' as observateur
+SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
+	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,tso.libelle_valeur as libelle_type_source,	null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,	null as auteur_doc,null as ref_doc,null as code_herbarium,null as code_index_herbariorum,null as nom_herbarium,	cd_herbier as code_herbier,
+	lib_herbier as nom_herbier,null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,	date_fin::date as date_fin_obs,	null as date_transmission,cd_ent_mere as id_flore_mere,	cfg.libelle_valeur, mog.libelle_valeur,cd_geo, lib_geo, com.geom,statut_pop,null as nom_observateur,	null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur
 	FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
@@ -407,13 +431,10 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref,
 --- Les maille10
 TRUNCATE exploitation.obs_maille_fr10;
 INSERT INTO exploitation.obs_maille_fr10
-SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, 	nom_ent_ref as nom_complet, 	cd_ent_mere as code_taxon_mere,	null as referentiel_mere,	nom_ent_mere as nom_taxon_mere,	nom_ent_orig as nom_taxon_originel, 
-	obs.rmq as remarque_taxon,	stp.libelle_valeur as libelle_statut_pop, 	lib_jdd as libelle_court_bd_mere, 	prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, 
-	cd_obs_orig as id_flore_source, 	rel.rmq as remarque_donnee_mere,	ntd.libelle_valeur as libelle_nature_date,	rel.rmq as remarque_date, 	ter.rmq as remarque_lieu,
-	tso.libelle_valeur as libelle_type_source,	null as type_doc,	cd_biblio as cote_biblio_cbn,	lib_biblio as titre_doc,	null as annee_doc,	null as auteur_doc,	null as ref_doc,
-	null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,	cd_herbier as code_herbier,	lib_herbier as nom_herbier,	null as part_herbier,	null as id_part,
-	null as cote_biblio_bd_mere,	date_debut::date as date_debut_obs,	date_fin::date as date_fin_obs,	null as date_transmission,	cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m10.geom,
-	statut_pop,	null as nom_observateur,	null as prenom_observateur,	'à mettre à jour' as libelle_organisme,	'à mettre à jour' as observateur
+SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
+	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop,lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,
+	tso.libelle_valeur as libelle_type_source,null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,null as part_herbier,null as id_part,
+	null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,	null as date_transmission,	cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m10.geom, statut_pop,null as nom_observateur,null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur
 	FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
@@ -432,12 +453,9 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref,
 --- Les maille5
 TRUNCATE exploitation.obs_maille_fr5;
 INSERT INTO exploitation.obs_maille_fr5
-SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, 	nom_ent_ref as nom_complet, 	cd_ent_mere as code_taxon_mere,	null as referentiel_mere,	nom_ent_mere as nom_taxon_mere,	nom_ent_orig as nom_taxon_originel, 
-	obs.rmq as remarque_taxon,	stp.libelle_valeur as libelle_statut_pop, 	lib_jdd as libelle_court_bd_mere, 	prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, 	cd_obs_orig as id_flore_source, 	rel.rmq as remarque_donnee_mere,
-	ntd.libelle_valeur as libelle_nature_date,	rel.rmq as remarque_date, 	ter.rmq as remarque_lieu,	tso.libelle_valeur as libelle_type_source,	null as type_doc,	cd_biblio as cote_biblio_cbn,	lib_biblio as titre_doc,
-	null as annee_doc,	null as auteur_doc,	null as ref_doc,	null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,	cd_herbier as code_herbier,	lib_herbier as nom_herbier,
-	null as part_herbier,	null as id_part,	null as cote_biblio_bd_mere,	date_debut::date as date_debut_obs,	date_fin::date as date_fin_obs,	null as date_transmission,	cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m5.geom,
-	statut_pop,	null as nom_observateur,	null as prenom_observateur,	'à mettre à jour' as libelle_organisme,	'à mettre à jour' as observateur	
+SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet, cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,
+	ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,tso.libelle_valeur as libelle_type_source,	null as type_doc,cd_biblio as cote_biblio_cbn,	lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,	null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,
+	null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,null as date_transmission,cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m5.geom,statut_pop,null as nom_observateur,null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur	
 	FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
@@ -458,6 +476,8 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref,
 	--string_agg(lib_orgm,',') as libelle_organisme,
 	--string_agg(nom_acteur,',') as observateur
 	-- JOIN hub.releve_acteur act ON rel.cd_jdd = act.cd_jdd AND rel.cd_releve = act.cd_releve
+
+
 out.lib_log := 'transfert OK';out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_global_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --PERFORM hub_log ('public', out); 
 RETURN next out;
