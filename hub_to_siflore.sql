@@ -221,28 +221,37 @@ CREATE OR REPLACE FUNCTION siflore_taxref_refresh(version integer) RETURNS setof
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN
+/*Mise à jour de la table taxref - suppression et recréation*/
+DROP TABLE IF EXISTS exploitation.taxref;
+CREATE TABLE exploitation.taxref (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_pkey PRIMARY KEY (cd_ref, nom_complet));
+DROP INDEX IF EXISTS cd_ref_idk;CREATE INDEX cd_ref_idk  ON exploitation.taxref  USING btree (cd_ref);
+DROP INDEX IF EXISTS cd_taxsup2_idk;CREATE INDEX cd_taxsup2_idk ON exploitation.taxref USING btree (cd_taxsup2);
+DROP INDEX IF EXISTS cd_taxsup3_idk;CREATE INDEX cd_taxsup3_idk ON exploitation.taxref USING btree (cd_taxsup3);
+DROP INDEX IF EXISTS cd_taxsup4_idk;CREATE INDEX cd_taxsup4_idk ON exploitation.taxref USING btree (cd_taxsup4);
+DROP INDEX IF EXISTS cd_taxsup_idk;CREATE INDEX cd_taxsup_idk ON exploitation.taxref USING btree (cd_taxsup);
+
+/*Alimentation de la table taxref*/
 EXECUTE '
--- Alimentation taxref_v'||version||'_new
-INSERT INTO exploitation.taxref_v'||version||'_new(cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat)
+INSERT INTO exploitation.taxref(cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat)
 SELECT cd_ref::integer, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup::integer, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat
 FROM ref.taxref_v'||version||'
-WHERE regne = ''Plantae'' OR  regne = ''Fungi'' OR regne = ''Chromista'' AND cd_nom = cd_ref
+WHERE (regne = ''Plantae'' OR  regne = ''Fungi'' OR regne = ''Chromista'') AND cd_nom = cd_ref
 GROUP BY cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat;
---- taxsup2
-UPDATE exploitation.taxref_v'||version||'_new i SET cd_taxsup2 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_v'||version||'_new) as out WHERE out.cd_ref = i.cd_taxsup;
---- taxsup3
-UPDATE exploitation.taxref_v'||version||'_new i SET cd_taxsup3 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_v'||version||'_new) as out WHERE out.cd_ref = i.cd_taxsup2;
---- taxsup4
-UPDATE exploitation.taxref_v'||version||'_new i SET cd_taxsup4 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_v'||version||'_new) as out WHERE out.cd_ref = i.cd_taxsup3;
 ';
 
+--- taxsup2
+UPDATE exploitation.taxref i SET cd_taxsup2 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref) as out WHERE out.cd_ref = i.cd_taxsup;
+--- taxsup3
+UPDATE exploitation.taxref i SET cd_taxsup3 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref) as out WHERE out.cd_ref = i.cd_taxsup2;
+--- taxsup4
+UPDATE exploitation.taxref i SET cd_taxsup4 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref) as out WHERE out.cd_ref = i.cd_taxsup3;
 /*Bryophyta et liste bryo*/
-EXECUTE 'UPDATE exploitation.taxref_v'||version||'_new SET liste_bryo = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE liste_bryo IS TRUE GROUP BY famille, liste_bryo);';
-EXECUTE 'UPDATE exploitation.taxref_v'||version||'_new SET bryophyta = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE bryophyta IS TRUE GROUP BY famille, bryophyta);';
+UPDATE exploitation.taxref SET liste_bryo = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE liste_bryo IS TRUE GROUP BY famille, liste_bryo);
+UPDATE exploitation.taxref SET bryophyta = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE bryophyta IS TRUE GROUP BY famille, bryophyta);
 
 
 --- Log
-out.lib_log := 'Taxref OK pour la version '||version;out.lib_schema := '-';out.lib_table := 'exploitation.taxref_v'||version||'_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
+out.lib_log := 'Taxref OK pour la version '||version;out.lib_schema := '-';out.lib_table := 'exploitation.taxref';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
