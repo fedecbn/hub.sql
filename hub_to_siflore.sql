@@ -542,7 +542,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_data_refresh() RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_data_refresh(wher varchar = '1=1') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE jdd threecol%rowtype;
@@ -550,7 +550,7 @@ DECLARE cmd varchar;
 BEGIN 
 --- Commande
 -- 0. pour tous les jeux de données nouvellement poussées (c'est à dire dans la partie temporaire du hub SI FLORE)
-cmd = 'SELECT typ_geo, cd_geo, cd_jdd FROM hub.metadonnees_territoire WHERE cd_geo = ''cor'';';
+cmd = 'SELECT typ_geo, cd_geo, cd_jdd FROM hub.metadonnees_territoire WHERE '||wher||';';
 FOR jdd IN EXECUTE cmd
 	LOOP
 	-- 4. on mets à jour les tables du SI FLORE
