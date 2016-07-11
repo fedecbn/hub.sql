@@ -302,13 +302,97 @@ FROM exploitation.taxref t inner join exploitation.lien_bdtfx_taxref l on (t.cd_
 flag = 1;
 ELSE END CASE;
 
-CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jours'; ELSE out.lib_log := 'référentiel mis à jour : '||typ; END CASE;
-
 --- Log
+CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jours'; ELSE out.lib_log := 'référentiel mis à jour : '||typ; END CASE;
 out.lib_schema := '-';out.lib_table := 'exploitation.taxref';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
+--- Fonction siflore_synthese_refresh
+--- Description : Mise à jour des synthèses
+--------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_synthese_refresh(typ varchar = 'all') RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE out cmd varchar;
+DECLARE out dbname varchar;
+DECLARE out flag integer;
+BEGIN 
+--- variable
+flag = 0;
+--- commande
+-- Remplir la table synthese_taxon_comm contenant la synthese pour les taxons liées aux communes
+CASE WHEN typ = 'com' OR typ = 'all' THEN
+TRUNCATE exploitation.synthese_taxon_comm;
+INSERT INTO exploitation.synthese_taxon_comm
+SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
+	count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
+	count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
+	count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
+	count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
+	count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
+	min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
+FROM exploitation.obs_commune obs
+GROUP BY obs.cd_ref, obs.nom_complet;
+flag = 1;
+ELSE END CASE;
 
+--Remplir la table synthese_taxon_fr10 contenant la synthese pour les taxons liées aux mailles 10
+CASE WHEN typ = 'm10' OR typ = 'all' THEN
+TRUNCATE exploitation.synthese_taxon_fr10;
+INSERT INTO exploitation.synthese_taxon_fr10
+SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
+count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
+count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
+count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
+count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
+count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
+min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
+FROM exploitation.obs_maille_fr10 obs
+GROUP BY obs.cd_ref, obs.nom_complet;
+flag = 1;
+ELSE END CASE;
+
+--Remplir la table synthese_taxon_fr5 contenant la synthese pour les taxons liées aux mailles 5
+CASE WHEN typ = 'm5' OR typ = 'all' THEN
+TRUNCATE exploitation.synthese_taxon_fr5;
+INSERT INTO exploitation.synthese_taxon_fr5
+SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
+count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
+count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
+count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
+count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
+count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
+min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
+FROM exploitation.obs_maille_fr5 obs
+GROUP BY obs.cd_ref, obs.nom_complet;
+flag = 1;
+ELSE END CASE;
+    
+
+-- peuplement: stt_lr_reg_catnat
+
+CASE WHEN typ = 'lr_reg' OR typ = 'all' THEN
+cmd = 'SELECT reg.uid, cd_ref, famille, nom_sci, cd_rang, reg.id_reg, CASE WHEN stt2 IS NULL THEN ''-'' ELSE stt2 END as statuts 
+FROM (
+	SELECT uid, cd_ref, famille, nom_sci, cd_rang, id_reg FROM referentiels.regions CROSS JOIN catnat.taxons_nat) as reg
+	LEFT JOIN  (SELECT sr.uid, sr.id_reg, CASE WHEN lr IS NULL THEN ''-'' ELSE lr END as stt2
+		FROM catnat.taxons_nat tn
+		LEFT JOIN catnat.statut_reg sr ON tn.uid = sr.uid
+		LEFT JOIN (SELECT uid, id_reg, id_statut as lr FROM catnat.statut_reg WHERE type_statut = ''LR'') 
+		as two on two.uid = sr.uid AND two.id_reg = sr.id_reg
+	GROUP BY sr.uid, sr.id_reg, stt2) as stt ON reg.id_reg = stt.id_reg AND reg.uid = stt.uid;'
+EXECUTE 'INSERT INTO exploitation.stt_lr_reg_catnat SELECT * FROM dblink(''dbname='||dbname||''','''||cmd||''') as t1 (uid integer,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer,statuts text)';
+flag = 1;
+ELSE END CASE;
+
+--- Log
+CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jour'; ELSE out.lib_log := 'synthèses mis à jour : '||typ; END CASE;
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out); RETURN next out;
+END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------
 -------------------------------------------------------------
@@ -669,63 +753,4 @@ END CASE;
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_push';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --PERFORM hub_log ('public', out); 
 RETURN next out;
-END; $BODY$ LANGUAGE plpgsql;
-
-
-
-
--------------------------------------------------------------
--------------------------------------------------------------
---------------------------------
---- Fonction siflore_synthese
---- Description : Mise à jour des synthèses
---------------------------------
--------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_synthese() RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-BEGIN 
-
---Remplir la table synthese_taxon_comm contenant la synthese pour les taxons liées aux communes
-TRUNCATE exploitation.synthese_taxon_comm;
-INSERT INTO exploitation.synthese_taxon_comm
-SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
-	count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
-	count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
-	count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
-	count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
-	count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
-	min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
-FROM exploitation.obs_commune obs
-GROUP BY obs.cd_ref, obs.nom_complet;
- 
---Remplir la table synthese_taxon_fr10 contenant la synthese pour les taxons liées aux mailles 10
-TRUNCATE exploitation.synthese_taxon_fr10;
-INSERT INTO exploitation.synthese_taxon_fr10
-SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
-count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
-count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
-count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
-count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
-count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
-min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
-FROM exploitation.obs_maille_fr10 obs
-GROUP BY obs.cd_ref, obs.nom_complet;
-
---Remplir la table synthese_taxon_fr5 contenant la synthese pour les taxons liées aux mailles 5
-TRUNCATE exploitation.synthese_taxon_fr5;
-INSERT INTO exploitation.synthese_taxon_fr5
-SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
-count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
-count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
-count(CASE WHEN obs.date_fin_obs >= '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_2001_2013, 
-count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::integer END) AS nb_obs_averee, 
-count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
-min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
-FROM exploitation.obs_maille_fr5 obs
-GROUP BY obs.cd_ref, obs.nom_complet;
-
-    
---- Log
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = '-'; PERFORM hub_log ('public', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
