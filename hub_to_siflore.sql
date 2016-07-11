@@ -678,6 +678,8 @@ END; $BODY$ LANGUAGE plpgsql;
 -------------------------------------------------------------
 -------------------------------------------------------------
 --------------------------------
+--- Fonction siflore_synthese
+--- Description : Mise à jour des synthèses
 --------------------------------
 -------------------------------------------------------------
 CREATE OR REPLACE FUNCTION siflore_synthese() RETURNS setof zz_log AS 
@@ -686,8 +688,8 @@ DECLARE out zz_log%rowtype;
 BEGIN 
 
 --Remplir la table synthese_taxon_comm contenant la synthese pour les taxons liées aux communes
-DROP TABLE exploitation.synthese_taxon_comm;
-CREATE TABLE exploitation.synthese_taxon_comm as
+TRUNCATE exploitation.synthese_taxon_comm;
+INSERT INTO exploitation.synthese_taxon_comm
 SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
 	count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
 	count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
@@ -697,14 +699,10 @@ SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs,
 	min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
 FROM exploitation.obs_commune obs
 GROUP BY obs.cd_ref, obs.nom_complet;
-    
---GRANT ALL ON TABLE exploitation.synthese_taxon_comm TO postgres;
-GRANT SELECT ON TABLE exploitation.synthese_taxon_comm TO lecteur_masao;
-
  
 --Remplir la table synthese_taxon_fr10 contenant la synthese pour les taxons liées aux mailles 10
-DROP TABLE exploitation.synthese_taxon_fr10;
-CREATE TABLE exploitation.synthese_taxon_fr10 as
+TRUNCATE exploitation.synthese_taxon_fr10;
+INSERT INTO exploitation.synthese_taxon_fr10
 SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
 count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
 count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
@@ -713,14 +711,11 @@ count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::inte
 count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
 min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
 FROM exploitation.obs_maille_fr10 obs
-group by obs.cd_ref, obs.nom_complet;
-    
---GRANT ALL ON TABLE exploitation.synthese_taxon_fr10 TO postgres;
-GRANT SELECT ON TABLE exploitation.synthese_taxon_fr10 TO lecteur_masao;
+GROUP BY obs.cd_ref, obs.nom_complet;
 
 --Remplir la table synthese_taxon_fr5 contenant la synthese pour les taxons liées aux mailles 5
-drop table exploitation.synthese_taxon_fr5;
-create table exploitation.synthese_taxon_fr5 as
+TRUNCATE exploitation.synthese_taxon_fr5;
+INSERT INTO exploitation.synthese_taxon_fr5
 SELECT obs.cd_ref, obs.nom_complet, count(*) AS nb_obs, 
 count(CASE WHEN obs.date_fin_obs >= '1500-01-01'::date AND obs.date_fin_obs < '1980-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1500_1980, 
 count(CASE WHEN obs.date_fin_obs >= '1980-01-01'::date AND obs.date_fin_obs < '2000-01-01'::date THEN 1 ELSE NULL::integer END) AS nb_obs_1981_2000, 
@@ -729,10 +724,8 @@ count(CASE WHEN obs.libelle_type_localisation = 'Averée' THEN 1 ELSE NULL::inte
 count(CASE WHEN obs.libelle_type_localisation = 'Interpretée' THEN 1 ELSE NULL::integer END) AS nb_obs_interpretee, 
 min(obs.date_debut_obs) AS date_premiere_obs, max(obs.date_fin_obs) AS date_derniere_obs
 FROM exploitation.obs_maille_fr5 obs
-group by obs.cd_ref, obs.nom_complet;
+GROUP BY obs.cd_ref, obs.nom_complet;
 
---GRANT ALL ON TABLE exploitation.synthese_taxon_fr5 TO postgres;
-GRANT SELECT ON TABLE exploitation.synthese_taxon_fr5 TO lecteur_masao;
     
 --- Log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = '-'; PERFORM hub_log ('public', out); RETURN next out;
