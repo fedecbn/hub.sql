@@ -45,6 +45,55 @@ CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table
 CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
 CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
 
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : siflore_admin_init
+--- Description : initialise les fonction du hub (supprime toutes les fonctions) et  initialise certaines tables (zz_log et bilan)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_admin_init() RETURNS void  AS 
+$BODY$ 
+DECLARE cmd varchar;
+DECLARE fonction varchar;
+DECLARE listFunction varchar[];
+DECLARE schem varchar;
+DECLARE tabl varchar;
+DECLARE exist varchar;
+DECLARE date_log timestamp;
+BEGIN 
+--- Variable
+SELECT CURRENT_TIMESTAMP INTO date_log;	
+--- Récupération de toutes les fonction du hub
+cmd = 'SELECT routine_name||''(''||string_agg(data_type ,'','')||'')'' FROM(
+	SELECT routine_name, z.specific_name, 
+		CASE WHEN z.data_type  = ''ARRAY'' THEN z.udt_name||''[]'' 
+		WHEN z.data_type  = ''USER-DEFINED'' THEN z.udt_name 
+		ELSE z.data_type END as data_type
+	FROM information_schema.routines a
+	JOIN information_schema.parameters z ON a.specific_name = z.specific_name
+	WHERE  routine_name LIKE ''siflore_%''
+	ORDER BY routine_name,ordinal_position
+	) as one
+	GROUP BY routine_name, specific_name';
+--- Suppression de ces fonctions
+FOR fonction IN EXECUTE cmd
+   LOOP EXECUTE 'DROP FUNCTION '||fonction||';';
+   END LOOP;
+
+-- Fonctions utilisées par le siflore
+listFunction = ARRAY['dblink','postgis'];
+FOREACH fonction IN ARRAY listFunction LOOP
+	EXECUTE 'SELECT extname from pg_extension WHERE extname = '''||fonction||''';' INTO exist;
+	CASE WHEN exist IS NULL THEN EXECUTE 'CREATE EXTENSION "'||fonction||'";';
+	ELSE END CASE;
+END LOOP;
+END;$BODY$ LANGUAGE plpgsql;
+
+--- Lancé à chaque fois pour réinitialier les fonctions
+SELECT * FROM siflore_admin_init();
+
+
 -------------------------------------------------------------
 -------------------------------------------------------------
 --------------------------------
@@ -56,21 +105,13 @@ CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
 CREATE OR REPLACE FUNCTION siflore_clone() RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE listFunction varchar[];
-DECLARE fonction varchar;
 DECLARE exist varchar;
 DECLARE base_source varchar;
 BEGIN
 /*variables*/
 base_source = 'si_flore_national_v3';
 
--- Fonctions utilisées par le siflore
-listFunction = ARRAY['dblink','postgis'];
-FOREACH fonction IN ARRAY listFunction LOOP
-	EXECUTE 'SELECT extname from pg_extension WHERE extname = '''||fonction||''';' INTO exist;
-	CASE WHEN exist IS NULL THEN EXECUTE 'CREATE EXTENSION "'||fonction||'";';
-	ELSE END CASE;
-END LOOP;
+
 
 --- Schema: observation;
 DROP SCHEMA IF EXISTS observation CASCADE; CREATE SCHEMA observation;
