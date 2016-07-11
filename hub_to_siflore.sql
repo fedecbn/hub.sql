@@ -27,6 +27,8 @@
 
 --- 2. Mise à jour des données SI FLORE (HUB SI FLORE => exploitation)
 -- SELECT * FROM siflore_data_refresh();
+--- ou 
+-- SELECT * FROM siflore_data_refresh('cd_jdd = ''PMP01'');
 
 --- 3. Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
 -- SELECT * FROM siflore_ref_refresh('listx');
@@ -503,7 +505,7 @@ END; $BODY$ LANGUAGE plpgsql;
 -------------------------------------------------------------
 -------------------------------------------------------------
 -- CREATE OR REPLACE FUNCTION siflore_hub_pull(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar) RETURNS setof zz_log AS 
-CREATE OR REPLACE FUNCTION siflore_hub_pull(dbname varchar, port varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_hub_pull(dbname varchar, port varchar, libSchema varchar = null, jdd varchar = null) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE out_maj twocol%rowtype;
@@ -514,23 +516,24 @@ BEGIN
 --connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
 connction = 'dbname='||dbname||' port='||port;
 --- Commande
--- 0. pour tous les jeux de données nouvellement poussées...
-cmd = 'SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log
-	WHERE typ_log = ''''hub_push'''' AND date_log >= current_date -1 AND lib_log LIKE ''''Données poussées%''''
-	GROUP BY lib_schema, nb_occurence ORDER BY lib_schema;
-	';
+-- 0. pour tous les jeux de données d'intérêt..
+CASE WHEN libSchema IS NULL OR jdd IS NULL THEN cmd = 'SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log WHERE typ_log = ''''hub_push'''' AND date_log >= current_date -1 AND lib_log LIKE ''''Données poussées%'''' GROUP BY lib_schema, nb_occurence ORDER BY lib_schema;';
+ELSE cmd = 'SELECT '''''||libSchema||''''','''''||jdd||''''' ;'; END CASE;
 FOR out_maj IN EXECUTE 'SELECT * from dblink('''||connction||''', '''||cmd||''') as t1 (cbn varchar, jdd varchar);'
 	LOOP
-	-- 1. ... on récupère sur le SI FLORE les données du Hub FCBN - schéma agrégation
+	-- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
 	--EXECUTE 'SELECT * FROM hub_connect('''||hote||''', '''|port||''','''||dbname||''','''||utilisateur||''','''||mdp||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
 	EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
-	-- 2. ... (SIFLORE) on pousse les données dans le hub SI FLORE.
+	-- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE.
 	EXECUTE 'SELECT * FROM hub_push(''hub'','''||out_maj.col2||''', ''add'');';
-	-- 3. ... (SIFLORE) on nettoie les données dans le hub SI FLORE
+	-- 3. ... (SIFLORE) on nettoie les données dans la partie temp du HUB SI FLORE
 	EXECUTE 'SELECT * FROM hub_clear(''hub'','''||out_maj.col2||''');';
 	-- log
 	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||out_maj.col2; PERFORM hub_log ('public', out); RETURN next out;
 END LOOP;
+
+UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
+UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' AND cd_geo NOT LIKE '5kmL93%';
 END; $BODY$ LANGUAGE plpgsql;
 
 
