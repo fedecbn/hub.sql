@@ -274,6 +274,7 @@ FROM hub.observation a
 JOIN exploitation.taxref z ON a.cd_ref::integer = z.cd_ref
 GROUP BY a.cd_ref, nom_ent_ref, z.rang, liste_bryo, bryophyta;
 
+
 --- exploitation.taxon : Version Anaïs
 /*
 TRUNCATE exploitation.taxons;
@@ -297,6 +298,11 @@ WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS
 SELECT cd_ref, nom_complet, rang, liste_bryo, bryophyta FROM hierarchie order by nom_complet
 ) all_tax order by nom_complet;
 */
+
+--- exploitation.information_taxons;
+TRUNCATE exploitation.information_taxons;
+INSERT INTO exploitation.information_taxons SELECT t.cd_ref, t.nom_complet,'<a href="http://www.tela-botanica.org/bdtfx-nn-'||l.num_nom|| '-synthese" target="_blank"> Lien Tela Botanica </a> <br /> <a href="http://inpn.mnhn.fr/espece/cd_nom/'||t.cd_ref||'" target="_blank"> Lien INPN </a> ' as url, l.num_nom as num_nom_tela, l.num_nom_retenu as num_nom_retenu_tela, l.nom_sci, l.cd_nom
+FROM exploitation.taxref t inner join exploitation.lien_bdtfx_taxref l on (t.cd_ref=l.cd_nom);
 
 ---- ARCHIVE
 /*
