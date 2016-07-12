@@ -3,16 +3,16 @@
 --- Pas à pas pour la création du SI FLORE
 -------------------------------------------------------------
 --- 1. Création de la base de données SI FLORE
--- CREATE DATABASE si_flore_national_v4 OWNER user ENCODING 'UTF-8';
+-- CREATE DATABASE si_flore_national_2016_07_12 OWNER postgres ENCODING 'UTF-8';
+-- !! récupérer les fonction du hub en lançant hub.sql !!
 -- SELECT * FROM siflore_clone();
 
 --- 2. Création d'un hub pour récupérer les données
--- !! récupérer les fonction du hub en lançant hub.sql !!
--- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','fsd'); --- récupération du Format standard de données
+-- SELECT * FROM hub_simple_connect_ref('fsd'); --- récupération du Format standard de données
 -- SELECT * FROM hub_admin_clone('hub');
 
 --- 3. Création/mise à jour des référentiels utilisés
--- SELECT * FROM hub_connect_ref('94.23.218.10','5433','si_flore_national','user','mdp','taxref_v7'); --- récupération de TAXREF v7
+-- SELECT * FROM hub_simple_connect_ref('taxref_v7'); --- récupération de TAXREF v7
 -- SELECT * FROM siflore_ref_refresh();
 
 --- 4. Ajout/mise à jour des utilisateurs 
@@ -25,7 +25,7 @@
 --- 1. Mise à jour des données SI FLORE (HUB SI FLORE => exploitation)
 -- SELECT * FROM siflore_data_refresh();
 --- ou 
--- SELECT * FROM siflore_data_refresh('cd_jdd = ''PMP01''');
+-- SELECT * FROM siflore_data_refresh('alp');
 
 --- 2. Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
 -- SELECT * FROM siflore_ref_refresh('listx');
@@ -192,8 +192,8 @@ CREATE TABLE exploitation.synthese_taxon_fr5  (cd_ref integer,  nom_complet char
 CREATE TABLE exploitation.information_taxa_taxons(cd_ref text,  famille text,  nom_sci text,  cd_rang text,  national text,  alsace text,  aquitaine text,  auvergne text,  basse_normandie text,  bourgogne text,  bretagne text,  centre text,  champagne_ardenne text,  corse text,  franche_comte text,  haute_normandie text,  ile_de_france text,  languedoc_roussillon text,  limousin text,  lorraine text,  midi_pyrenees text,  nord_pas_de_calais text,  pays_de_la_loire text,  picardie text,  poitou_charentes text,  paca text,  rhone_alpes text);
 CREATE TABLE exploitation.information_taxons(cd_ref integer,  nom_complet character varying,  url text,  num_nom_tela character varying,  num_nom_retenu_tela character varying,  nom_sci character varying,  cd_nom integer);
 --- Table : exploitation.lien_bdtfx_taxref
-CREATE TABLE exploitation.lien_bdtfx_taxref(num_nom character varying,num_nom_retenu character varying,nom_sci character varying,cd_nom integer,CONSTRAINT num_nom_pkey PRIMARY KEY (num_nom));
-EXECUTE 'INSERT INTO exploitation.lien_bdtfx_taxref SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.lien_bdtfx_taxref;'') as t1(a character,z character varying,e character varying,r character varying,t integer)';
+CREATE TABLE exploitation.lien_bdtfx_taxref(num_nom character varying, num_nom_retenu character varying, nom_sci character varying, cd_nom integer, CONSTRAINT num_nom_pkey PRIMARY KEY (num_nom));
+EXECUTE 'INSERT INTO exploitation.lien_bdtfx_taxref SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.lien_bdtfx_taxref;'') as t1(a character varying,z character varying,e character varying,t integer)';
 --- Table : exploitation.stt_lr_reg_catnat
 CREATE TABLE exploitation.stt_lr_reg_catnat(uid integer NOT NULL,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer NOT NULL,statuts text,CONSTRAINT stt_lr_reg_catnat_pkey PRIMARY KEY (uid, id_reg));
 --- Table : exploitation.stt_lr_nat_catnat
@@ -245,7 +245,7 @@ DECLARE out zz_log%rowtype;
 DECLARE ListUser varchar[];
 DECLARE oneUser varchar;
 BEGIN
-CASE WHEN user IS null THEN
+CASE WHEN this_user IS null THEN
 	ListUser = ARRAY['cbn_c_interface','cbn_med_interface','cbn_bl_interface','cbn_bp_interface','cbn_alp_interface','cbn_mc_interface','cbn_fc_interface','cbn_mas_interface','cbn_b_interface','a_just_interface','j_gourvil_interface','m_decherf_interface','j_millet_interface','r_gaspard_interface','i_mandon_interface','cbn_sa_interface','cbn_pmp_interface','plateforme_siflore','lecteur_masao'];
 ELSE ListUser = ARRAY [this_user];
 END CASE;
@@ -603,8 +603,8 @@ connction = 'dbname=si_flore_national port=5433';
 --- Commande
 -- 0. pour tous les jeux de données d'intérêt..
 CASE WHEN libSchema IS NULL THEN cmd = 'SELECT lib_schema FROM public.zz_log WHERE typ_log = ''''hub_push'''' AND date_log >= current_date -1 AND lib_log LIKE ''''Données poussées%'''' AND nb_occurence = ''''data'''' GROUP BY lib_schema;';
-ELSE cmd = 'SELECT '''''||libSchema||''''' ;'; END CASE;
-FOR listSchema IN EXECUTE 'SELECT * from dblink('''||connction||''', '''||cmd||''') as t1 (cbn varchar, jdd varchar);'
+ELSE cmd = 'SELECT '''''||libSchema||'''''::varchar'; END CASE;
+FOR listSchema IN EXECUTE 'SELECT * from dblink('''||connction||''', '''||cmd||''') as t1 (libSchema varchar);'
 	LOOP
 	-- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
 	--EXECUTE 'SELECT * FROM hub_connect('''||hote||''', '''|port||''','''||dbname||''','''||utilisateur||''','''||mdp||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
@@ -619,7 +619,8 @@ FOR listSchema IN EXECUTE 'SELECT * from dblink('''||connction||''', '''||cmd||'
 		EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||listJdd||''';';
 		EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||listJdd||''';';
 	END LOOP;	
-	EXECUTE 'SELECT * FROM siflore_insert();';
+	SELECT * FROM siflore_insert();
+	SELECT * FROM hub_truncate('hub','propre');
 	-- log
 	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||listSchema; PERFORM hub_log ('public', out); RETURN next out;
 END LOOP;
