@@ -721,6 +721,28 @@ END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- Nom : hub_truncate
+--- Description : Truncate le hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_truncate(libSchema varchar,partie varchar = 'temp') RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE prefixe varchar;
+DECLARE libTable varchar;
+BEGIN
+--- Variables 
+CASE WHEN partie = 'temp' THEN prefixe = 'temp_'; WHEN partie = 'temp' THEN prefixe = ''; ELSE END CASE;
+--- Commandes
+FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;' LOOP 
+	EXECUTE 'TRUNCATE '||libSchema||'.'||prefixe||libTable||';'; 
+END LOOP;
+--- Output&Log
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_truncate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = '-';PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END; $BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 --- Nom : hub_connect 
 --- Description :  Copie du Hub vers un serveur distant
 ---------------------------------------------------------------------------------------------------------
