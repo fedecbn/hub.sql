@@ -833,7 +833,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJd
 	EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
 	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE (typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'') AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;
 	EXECUTE 'SELECT * from dblink_send_query(''link'',''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'');';
-	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * FROM dblink_get_result(''link'') as t1 ('||list_champ||');';
+	EXECUTE 'INSERT INTO '||libSchema_to||'.'||libTable||' SELECT * FROM dblink_get_result(''link'') as t1 ('||list_champ||');';
 	PERFORM dblink_disconnect('link');
 END LOOP;
 
