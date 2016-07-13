@@ -663,8 +663,25 @@ END; $BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_clear(libSchema varchar, jdd varchar, partie varchar = 'temp') RETURNS setof zz_log  AS 
-$BODY$ BEGIN
-EXECUTE 'SELECT * FROM hub_clear_plus('''||libSchema||''','''||libSchema||''','''||jdd||''','''||partie||''','''||partie||''');';
+$BODY$ 
+DECLARE out zz_log%rowtype;
+DECLARE prefixe varchar;
+DECLARE wher varchar;
+DECLARE flag integer;
+BEGIN
+--- Variables
+CASE WHEN partie = 'temp' THEN prefixe = 'temp_'; WHEN partie = 'propre' THEN prefixe = ''; ELSE END CASE;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN wher = 'typ_jdd = '''||jdd||''''; ELSE wher = 'cd_jdd = '''||jdd||''''; END CASE;
+--- Commande
+EXECUTE 'SELECT DISTINCT 1 FROM '||libSchema||'.'||prefixe||'metadonnees WHERE '||wher INTO flag;
+CASE WHEN flag = 1 THEN
+	EXECUTE 'SELECT * FROM hub_clear_plus('''||libSchema||''','''||libSchema||''','''||jdd||''','''||partie||''','''||partie||''');' INTO out;
+	PERFORM (libSchema, out);RETURN NEXT out;
+ELSE 
+	--- Output&Log
+	out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+	out.lib_log = 'pas de jdd '||jdd;PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END CASE;
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -1380,7 +1397,7 @@ BEGIN
 --- Variables Jdd
 CASE WHEN jdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'table_name LIKE ''observation%'' OR table_name LIKE ''releve%'''; flag := 1;
 	WHEN jdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'table_name LIKE ''entite%'''; flag := 1;
-	ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+	ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
 		CASE WHEN typJdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'table_name LIKE ''observation%'' OR table_name LIKE ''releve%'''; flag := 1;
 			WHEN typJdd = 'taxa' THEN champRef = 'cd_ent_perm';	tableRef = 'table_name LIKE ''entite%'''; flag := 1;
 			ELSE flag := 0;

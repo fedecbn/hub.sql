@@ -8,11 +8,10 @@
 -- SELECT * FROM siflore_clone();
 
 --- 2. Création d'un hub pour récupérer les données
--- SELECT * FROM hub_simple_connect_ref('fsd'); --- récupération du Format standard de données
+-- SELECT * FROM hub_simple_connect_ref('all');
 -- SELECT * FROM hub_admin_clone('hub');
 
 --- 3. Création/mise à jour des référentiels utilisés
--- SELECT * FROM hub_simple_connect_ref('taxref_v7'); --- récupération de TAXREF v7
 -- SELECT * FROM siflore_ref_refresh();
 
 --- 4. Ajout/mise à jour des utilisateurs 
@@ -25,7 +24,7 @@
 --- 1. Mise à jour des données SI FLORE (HUB SI FLORE => exploitation)
 -- SELECT * FROM siflore_data_refresh();
 --- ou 
--- SELECT * FROM siflore_data_refresh('alp');
+-- SELECT * FROM siflore_data_refresh('cor');
 
 --- 2. Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
 -- SELECT * FROM siflore_ref_refresh('listx');
@@ -590,40 +589,34 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_data_refresh(libSchema varchar = null) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_data_refresh(libSchema varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
-DECLARE listSchema varchar;
 DECLARE listJdd varchar;
 DECLARE cmd varchar;
 BEGIN 
 --- Variable
 connction = 'dbname=si_flore_national port=5433';
 --- Commande
--- 0. pour tous les jeux de données d'intérêt..
-CASE WHEN libSchema IS NULL THEN cmd = 'SELECT lib_schema FROM public.zz_log WHERE typ_log = ''''hub_push'''' AND date_log >= current_date -1 AND lib_log LIKE ''''Données poussées%'''' AND nb_occurence = ''''data'''' GROUP BY lib_schema;';
-ELSE cmd = 'SELECT '''''||libSchema||'''''::varchar'; END CASE;
-FOR listSchema IN EXECUTE 'SELECT * from dblink('''||connction||''', '''||cmd||''') as t1 (libSchema varchar);'
-	LOOP
-	-- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
-	--EXECUTE 'SELECT * FROM hub_connect('''||hote||''', '''|port||''','''||dbname||''','''||utilisateur||''','''||mdp||''', '''||out_maj.col2||''', '''||out_maj.col1||''', ''hub'');';
-	EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', ''data'', '''||listSchema||''', ''hub'');';
-	/*problèmes code maille*/
-	UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
-	UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' AND cd_geo NOT LIKE '5kmL93%';
+-- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
+EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', ''data'', '''||libSchema||''', ''hub'');';
+/*problèmes code maille*/
+UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
+UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' AND cd_geo NOT LIKE '5kmL93%';
 
-	-- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE (suppression + ajout)
-	FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
-		EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||listJdd||''';';
-		EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||listJdd||''';';
-		EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||listJdd||''';';
-	END LOOP;	
-	SELECT * FROM siflore_insert();
-	SELECT * FROM hub_truncate('hub','propre');
-	-- log
-	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||listSchema; PERFORM hub_log ('public', out); RETURN next out;
-END LOOP;
+-- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE (suppression + ajout)
+FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
+	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||listJdd||''';';
+	EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||listJdd||''';';
+	EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||listJdd||''';';
+END LOOP;	
 
+SELECT * INTO out FROM siflore_insert();
+SELECT * INTO out FROM hub_truncate('hub','propre');
 
+-- log
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; PERFORM hub_log ('public', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
+
+
