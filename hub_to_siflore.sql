@@ -21,21 +21,16 @@
 -------------------------------------------------------------
 --- Pas à pas pour la mise à jour des données dans le SI FLORE ---
 -------------------------------------------------------------
---- 1. Mise à jour des données SI FLORE (HUB SI FLORE => exploitation)
--- SELECT * FROM siflore_data_refresh();
---- ou 
--- SELECT * FROM siflore_data_refresh('cor');
+--- Mise à jour SI FLORE
+-- SELECT * FROM siflore_refresh();
 
---- 2. Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
--- SELECT * FROM siflore_ref_refresh('listx');
--- SELECT * FROM siflore_synthese_refresh();
 --- ou 
--- SELECT * FROM siflore_synthese_refresh('com');
--- SELECT * FROM siflore_synthese_refresh('m10');
--- SELECT * FROM siflore_synthese_refresh('m5');
--- SELECT * FROM siflore_synthese_refresh('lr_reg');
--- SELECT * FROM siflore_synthese_refresh('lr_nat');
--- SELECT * FROM siflore_synthese_refresh('taxa');
+--- Mise à jour des données (HUB SIFLORE => exploitation)
+-- SELECT * FROM siflore_data_refresh('cor');
+---  Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
+-- SELECT * FROM siflore_ref_refresh();
+-- SELECT * FROM siflore_synthese_refresh();
+
 -------------------------------------------------------------
 -------------------------------------------------------------
 
@@ -306,38 +301,6 @@ UPDATE exploitation.taxref SET bryophyta = TRUE WHERE famille in (SELECT famille
 flag = 1;
 ELSE END CASE;
 
-/*Mise à jour de la liste déroulante des taxons*/
-CASE WHEN typ = 'listx' OR typ = 'all' THEN
---- version Thomas
-TRUNCATE exploitation.taxons; 
-INSERT INTO exploitation.taxons 
-SELECT a.cd_ref::integer, nom_ent_ref, z.rang, 
-CASE 	WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste' 
-	WHEN liste_bryo IS FALSE AND bryophyta IS TRUE THEN 'bryo_pas_liste' 
-	WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' 
-	ELSE 'problème' END as type
-FROM hub.observation a
-JOIN exploitation.taxref z ON a.cd_ref::integer = z.cd_ref
-GROUP BY a.cd_ref, nom_ent_ref, z.rang, liste_bryo, bryophyta;
-flag = 1;
-ELSE END CASE;
-
---- Version Anaïs
-/*
-TRUNCATE exploitation.taxons;
-INSERT INTO exploitation.taxons
-SELECT all_tax.cd_ref, all_tax.nom_complet, all_tax.rang, 
-CASE 	WHEN (all_tax.bryophyta=true and all_tax.liste_bryo=true) THEN 'bryo_liste' 
-	WHEN (all_tax.bryophyta=true and all_tax.liste_bryo=false) THEN 'bryo_pas_liste' 
-	WHEN (all_tax.bryophyta=false) THEN 'tracheo' 
-	ELSE 'non connu' END as "type"
-FROM (
-WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS (
-SELECT cd_ref, nom_complet, cd_taxsup, rang, liste_bryo, bryophyta   FROM exploitation.taxref_v7_new WHERE cd_ref::text  in (select distinct obs.cd_ref from hub.observation obs)
-  UNION
-SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang, e.liste_bryo,e.bryophyta   FROM hierarchie AS h, exploitation.taxref_v7_new AS e  WHERE h.cd_taxsup = e.cd_ref
-) SELECT cd_ref, nom_complet, rang, liste_bryo, bryophyta FROM hierarchie order by nom_complet) all_tax order by nom_complet;
-*/
 
 ---- ARCHIVE
 /*
@@ -379,6 +342,39 @@ BEGIN
 --- variable
 flag = 0;
 --- commande
+/*Mise à jour de la liste déroulante des taxons*/
+CASE WHEN typ = 'listx' OR typ = 'all' THEN
+--- version Thomas
+TRUNCATE exploitation.taxons; 
+INSERT INTO exploitation.taxons 
+SELECT a.cd_ref::integer, nom_ent_ref, z.rang, 
+CASE 	WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste' 
+	WHEN liste_bryo IS FALSE AND bryophyta IS TRUE THEN 'bryo_pas_liste' 
+	WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' 
+	ELSE 'problème' END as type
+FROM hub.observation a
+JOIN exploitation.taxref z ON a.cd_ref::integer = z.cd_ref
+GROUP BY a.cd_ref, nom_ent_ref, z.rang, liste_bryo, bryophyta;
+flag = 1;
+ELSE END CASE;
+
+--- Version Anaïs
+/*
+TRUNCATE exploitation.taxons;
+INSERT INTO exploitation.taxons
+SELECT all_tax.cd_ref, all_tax.nom_complet, all_tax.rang, 
+CASE 	WHEN (all_tax.bryophyta=true and all_tax.liste_bryo=true) THEN 'bryo_liste' 
+	WHEN (all_tax.bryophyta=true and all_tax.liste_bryo=false) THEN 'bryo_pas_liste' 
+	WHEN (all_tax.bryophyta=false) THEN 'tracheo' 
+	ELSE 'non connu' END as "type"
+FROM (
+WITH RECURSIVE hierarchie(cd_ref, nom_complet, cd_taxsup, rang) AS (
+SELECT cd_ref, nom_complet, cd_taxsup, rang, liste_bryo, bryophyta   FROM exploitation.taxref_v7_new WHERE cd_ref::text  in (select distinct obs.cd_ref from hub.observation obs)
+  UNION
+SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang, e.liste_bryo,e.bryophyta   FROM hierarchie AS h, exploitation.taxref_v7_new AS e  WHERE h.cd_taxsup = e.cd_ref
+) SELECT cd_ref, nom_complet, rang, liste_bryo, bryophyta FROM hierarchie order by nom_complet) all_tax order by nom_complet;
+*/
+
 -- Remplir la table synthese_taxon_comm contenant la synthese pour les taxons liées aux communes
 CASE WHEN typ = 'com' OR typ = 'all' THEN
 TRUNCATE exploitation.synthese_taxon_comm;
@@ -616,7 +612,8 @@ SELECT * INTO out FROM siflore_insert();
 SELECT * INTO out FROM hub_truncate('hub','propre');
 
 -- log
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; PERFORM hub_log ('public', out); RETURN next out;
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; 
+PERFORM hub_log ('public', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
