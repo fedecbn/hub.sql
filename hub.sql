@@ -1950,6 +1950,12 @@ END;$BODY$ LANGUAGE plpgsql;
 
 --- SELECT hub_runfc();
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_right_dblink
+--- Description : Ajout des droits de l'utilisation de dblink aux utilisateurs
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_admin_right_dblink (login varchar, is_granted boolean = true) RETURNS varchar  AS 
 $BODY$ 
 DECLARE cmd varchar;
@@ -2040,7 +2046,35 @@ RETURN 'OK';
 END;$BODY$ LANGUAGE plpgsql;
 
 
-CREATE OR REPLACE FUNCTION hub_verif_date (date varchar) returns boolean as $$
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_publicate
+--- Description : Notifie la demande de publisation sur le SI FLORE des données
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_publicate (libSchema varchar, jdd varchar) RETURNS setof zz_log AS 
+$BODY$ 
+DECLARE out zz_log%rowtype;
+DECLARE listJdd varchar;
+BEGIN
+--- variable
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_publicate';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'jdd à publier';
+--- commande
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
+	FOR listJdd IN EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE typ_jdd = '''||jdd||'''' LOOP
+		out.nb_occurence := listJdd;PERFORM hub_log (libSchema, out); RETURN next out;
+	END LOOP;
+ELSE out.nb_occurence := jdd; PERFORM hub_log (libSchema, out); RETURN next out;
+END CASE;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_verif_date
+--- Description : Fonction de vérification du format date d'un champ
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_verif_date (champ varchar) returns boolean as $$
 begin
      if ($1 is null) then
          return FALSE;
