@@ -122,6 +122,7 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_admin_clone(libSchema varchar, typ varchar = 'all') RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype; 
+DECLARE result threecol%rowtype; 
 DECLARE flag integer; 
 DECLARE typjdd varchar; 
 DECLARE cd_table varchar; 
@@ -129,6 +130,7 @@ DECLARE list_champ varchar;
 DECLARE list_champ_sans_format varchar; 
 DECLARE list_contraint varchar; 
 DECLARE schema_lower varchar; 
+DECLARE valeurs varchar; 
 BEGIN
 --- Variable
 schema_lower = lower(libSchema);
@@ -139,7 +141,7 @@ CASE WHEN flag = 1 THEN
 ELSE 
 	EXECUTE 'CREATE SCHEMA "'||schema_lower||'";';
 
-	--- META : PARTIE PROPRE 
+	--- Hub
 	FOR typjdd IN SELECT typ_jdd FROM ref.fsd GROUP BY typ_jdd
 	LOOP
 		FOR cd_table IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' GROUP BY cd_table'
@@ -155,6 +157,15 @@ ELSE
 			ELSE END CASE;
 		END LOOP;
 	END LOOP;
+
+	--- Contrainte check
+	FOR result IN SELECT a.cd_champ, z.cd_table, z.format FROM ref.voca_ctrl a JOIN ref.fsd z ON a.cd_champ = z.cd_champ GROUP BY a.cd_champ, z.cd_table, z.format LOOP
+		CASE WHEN result.col3 = 'integer' THEN EXECUTE 'SELECT ''(''||string_agg(code_valeur,'','')||'')'' FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
+			ELSE EXECUTE  'SELECT replace(''(''''''||string_agg(code_valeur,'','')||'''''')'','','','''''','''''') FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
+		END CASE;
+		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
+	END LOOP;
+	
 	--- LISTE TAXON
 	EXECUTE '
 	CREATE TABLE "'||schema_lower||'".zz_log_liste_taxon  (cd_ref character varying, nom_valide character varying);
@@ -505,6 +516,8 @@ END;$BODY$LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_admin_refresh(libSchema varchar, typ varchar = 'date') RETURNS setof zz_log  AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
+DECLARE result threecol%rowtype;
+DECLARE valeurs varchar;
 DECLARE libTable varchar;
 DECLARE sch_from varchar;
 DECLARE sch_to varchar;
@@ -513,6 +526,13 @@ CASE WHEN typ = 'date' THEN
 	EXECUTE 'ALTER TABLE '||libSchema||'.releve ALTER COLUMN date_debut SET DATA TYPE date USING date_debut::date;
 		ALTER TABLE '||libSchema||'.releve ALTER COLUMN date_fin SET DATA TYPE date USING date_fin::date;';
 	out.lib_log := 'Refresh date OK';
+WHEN typ = 'check' THEN
+	FOR result IN SELECT a.cd_champ, z.cd_table, z.format FROM ref.voca_ctrl a JOIN ref.fsd z ON a.cd_champ = z.cd_champ GROUP BY a.cd_champ, z.cd_table, z.format LOOP
+		CASE WHEN result.col3 = 'integer' THEN EXECUTE 'SELECT ''(''||string_agg(code_valeur,'','')||'')'' FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
+			ELSE EXECUTE  'SELECT replace(''(''''''||string_agg(code_valeur,'','')||'''''')'','','','''''','''''') FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
+		END CASE;
+		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
+	END LOOP;
 ELSE
 	EXECUTE 'SELECT * FROM hub_admin_clone('''||libSchema||'_''); ';
 	sch_from = libSchema;
