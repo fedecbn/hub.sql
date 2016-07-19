@@ -21,10 +21,6 @@
 -------------------------------------------------------------
 --- Pas à pas pour la mise à jour des données dans le SI FLORE ---
 -------------------------------------------------------------
---- Mise à jour SI FLORE
--- SELECT * FROM siflore_refresh();
-
---- ou 
 --- Mise à jour des données (HUB SIFLORE => exploitation)
 -- SELECT * FROM siflore_data_refresh('cor');
 ---  Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
@@ -104,8 +100,6 @@ BEGIN
 /*variables*/
 base_source = 'si_flore_national_v3';
 
-
-
 --- Schema: observation;
 DROP SCHEMA IF EXISTS observation CASCADE; CREATE SCHEMA observation;
 -- Table: observation.bd_mere
@@ -142,30 +136,30 @@ DROP SCHEMA IF EXISTS exploitation CASCADE; CREATE SCHEMA exploitation;
 CREATE TABLE exploitation.commentaires (id serial NOT NULL,  comment text NOT NULL,  nom character varying NOT NULL,  prenom character varying,  utilisateur character varying,  email character varying,  cd_ref integer,  id_obj character varying,  date_com date,  type_com character varying,  priorite_com character varying,  action_com character varying,  id_flore_fcbn character varying,  nom_complet character varying,  comment2 text[],  CONSTRAINT commentaire_id_pkey PRIMARY KEY (id));
 --- Table: exploitation.obs_commune;
 CREATE TABLE exploitation.obs_commune(cd_jdd character varying,id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  libelle_type_localisation character varying,  libelle_type_rattachement character varying,  insee_comm character varying NOT NULL,  nom_comm character varying,  geom geometry,  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  CONSTRAINT obs_commune_pkey PRIMARY KEY (id_flore_fcbn, insee_comm));
-DROP INDEX IF EXISTS obs_commune_cd_ref_idk;CREATE INDEX obs_commune_cd_ref_idk  ON exploitation.obs_commune  USING btree  (cd_ref);
-DROP INDEX IF EXISTS obs_commune_geom_gist;CREATE INDEX obs_commune_geom_gist  ON exploitation.obs_commune  USING gist  (geom);
-DROP INDEX IF EXISTS obs_commune_insee_comm_idk;CREATE INDEX obs_commune_insee_comm_idk  ON exploitation.obs_commune  USING btree  (insee_comm COLLATE pg_catalog."default");
-DROP INDEX IF EXISTS obs_commune_nom_comm_idk;CREATE INDEX obs_commune_nom_comm_idk  ON exploitation.obs_commune  USING btree  (nom_comm COLLATE pg_catalog."default");
-DROP INDEX IF EXISTS obs_commune_cd_jdd_idk;CREATE INDEX obs_commune_cd_jdd_idk  ON exploitation.obs_commune  USING btree  (cd_jdd COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_commune_cd_ref_idk;CREATE INDEX obs_commune_cd_ref_idk  ON exploitation.obs_commune  USING btree  (cd_ref);
+DROP INDEX IF EXISTS exploitation.obs_commune_geom_gist;CREATE INDEX obs_commune_geom_gist  ON exploitation.obs_commune  USING gist  (geom);
+DROP INDEX IF EXISTS exploitation.obs_commune_insee_comm_idk;CREATE INDEX obs_commune_insee_comm_idk  ON exploitation.obs_commune  USING btree  (insee_comm COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_commune_nom_comm_idk;CREATE INDEX obs_commune_nom_comm_idk  ON exploitation.obs_commune  USING btree  (nom_comm COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_commune_cd_jdd_idk;CREATE INDEX obs_commune_cd_jdd_idk  ON exploitation.obs_commune  USING btree  (cd_jdd COLLATE pg_catalog."default");
 --- Table: exploitation.obs_maille_fr10
 CREATE TABLE exploitation.obs_maille_fr10(cd_jdd character varying,id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  cd_sig character varying NOT NULL,  libelle_type_localisation character varying,  libelle_type_rattachement character varying,  geom geometry(MultiPolygon,2154),  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  CONSTRAINT obs_maille_fr10_pkey PRIMARY KEY (id_flore_fcbn, cd_sig));
-DROP INDEX IF EXISTS obs_maille_fr10_cd_ref_idk; CREATE INDEX obs_maille_fr10_cd_ref_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_ref);
-DROP INDEX IF EXISTS obs_maille_fr10_cd_sig_idk; CREATE INDEX obs_maille_fr10_cd_sig_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_sig COLLATE pg_catalog."default");
-DROP INDEX IF EXISTS obs_maille_fr10_geom_gist; CREATE INDEX obs_maille_fr10_geom_gist ON exploitation.obs_maille_fr10  USING gist  (geom);
-DROP INDEX IF EXISTS obs_maille_fr10_cd_jdd_idk;CREATE INDEX obs_maille_fr10_cd_jdd_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_jdd COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_maille_fr10_cd_ref_idk; CREATE INDEX obs_maille_fr10_cd_ref_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_ref);
+DROP INDEX IF EXISTS exploitation.obs_maille_fr10_cd_sig_idk; CREATE INDEX obs_maille_fr10_cd_sig_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_sig COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_maille_fr10_geom_gist; CREATE INDEX obs_maille_fr10_geom_gist ON exploitation.obs_maille_fr10  USING gist  (geom);
+DROP INDEX IF EXISTS exploitation.obs_maille_fr10_cd_jdd_idk;CREATE INDEX obs_maille_fr10_cd_jdd_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_jdd COLLATE pg_catalog."default");
 -- Table: exploitation.obs_maille_fr5
 CREATE TABLE exploitation.obs_maille_fr5 (cd_jdd character varying,id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  cd_sig character varying NOT NULL,  libelle_type_localisation character varying(20),  libelle_type_rattachement character varying,  geom geometry(MultiPolygon,2154),  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  CONSTRAINT obs_maille_fr5_pkey PRIMARY KEY (id_flore_fcbn, cd_sig));
-DROP INDEX IF EXISTS obs_maille_fr5_cd_ref_idk;CREATE INDEX obs_maille_fr5_cd_ref_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_ref);
-DROP INDEX IF EXISTS obs_maille_fr5_cd_sig_idk;CREATE INDEX obs_maille_fr5_cd_sig_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_sig COLLATE pg_catalog."default");
-DROP INDEX IF EXISTS obs_maille_fr5_geom_gist;CREATE INDEX obs_maille_fr5_geom_gist  ON exploitation.obs_maille_fr5  USING gist  (geom);
-DROP INDEX IF EXISTS obs_maille_fr5_cd_jdd_idk;CREATE INDEX obs_maille_fr5_cd_jdd_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_jdd COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_ref_idk;CREATE INDEX obs_maille_fr5_cd_ref_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_ref);
+DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_sig_idk;CREATE INDEX obs_maille_fr5_cd_sig_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_sig COLLATE pg_catalog."default");
+DROP INDEX IF EXISTS exploitation.obs_maille_fr5_geom_gist;CREATE INDEX obs_maille_fr5_geom_gist  ON exploitation.obs_maille_fr5  USING gist  (geom);
+DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_jdd_idk;CREATE INDEX obs_maille_fr5_cd_jdd_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_jdd COLLATE pg_catalog."default");
 -- Table: exploitation.taxref_v5
 CREATE TABLE exploitation.taxref_v5_new (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_v5_pkey PRIMARY KEY (cd_ref, nom_complet));
-DROP INDEX IF EXISTS cd_ref_5_idk;CREATE INDEX cd_ref_5_idk  ON exploitation.taxref_v5_new  USING btree (cd_ref);
-DROP INDEX IF EXISTS cd_taxsup2_5_idk;CREATE INDEX cd_taxsup2_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup2);
-DROP INDEX IF EXISTS cd_taxsup3_5_idk;CREATE INDEX cd_taxsup3_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup3);
-DROP INDEX IF EXISTS cd_taxsup4_5_idk;CREATE INDEX cd_taxsup4_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup4);
-DROP INDEX IF EXISTS cd_taxsup_5_idk;CREATE INDEX cd_taxsup_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup);
+DROP INDEX IF EXISTS exploitation.cd_ref_5_idk;CREATE INDEX cd_ref_5_idk  ON exploitation.taxref_v5_new  USING btree (cd_ref);
+DROP INDEX IF EXISTS exploitation.cd_taxsup2_5_idk;CREATE INDEX cd_taxsup2_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup2);
+DROP INDEX IF EXISTS exploitation.cd_taxsup3_5_idk;CREATE INDEX cd_taxsup3_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup3);
+DROP INDEX IF EXISTS exploitation.cd_taxsup4_5_idk;CREATE INDEX cd_taxsup4_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup4);
+DROP INDEX IF EXISTS exploitation.cd_taxsup_5_idk;CREATE INDEX cd_taxsup_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup);
 EXECUTE 'INSERT INTO exploitation.taxref_v5_new SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.taxref_v5_new;'') as t1(cd_ref integer,  nom_complet character varying,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean,  bryophyta boolean,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer)';
 -- Table: exploitation.taxref
 CREATE TABLE exploitation.taxref (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_pkey PRIMARY KEY (cd_ref, nom_complet));
@@ -345,6 +339,7 @@ DECLARE flag integer;
 BEGIN 
 --- variable
 flag = 0;
+dbname = 'outil_evaluation';
 --- commande
 /*Mise à jour de la liste déroulante des taxons*/
 CASE WHEN typ = 'listx' OR typ = 'all' THEN
@@ -430,25 +425,27 @@ ELSE END CASE;
 
 -- peuplement: stt_lr_reg_catnat
 CASE WHEN typ = 'lr_reg' OR typ = 'all' THEN
-cmd = 'SELECT reg.uid, cd_ref, famille, nom_sci, cd_rang, reg.id_reg, CASE WHEN stt2 IS NULL THEN ''-'' ELSE stt2 END as statuts 
+TRUNCATE exploitation.stt_lr_reg_catnat;
+INSERT INTO exploitation.stt_lr_reg_catnat 
+SELECT * FROM dblink('dbname=outil_evaluation','SELECT reg.uid, cd_ref, famille, nom_sci, cd_rang, reg.id_reg, CASE WHEN stt2 IS NULL THEN ''-'' ELSE stt2 END as statuts 
 	FROM (SELECT uid, cd_ref, famille, nom_sci, cd_rang, id_reg FROM referentiels.regions CROSS JOIN catnat.taxons_nat) as reg
 	LEFT JOIN  (SELECT sr.uid, sr.id_reg, CASE WHEN lr IS NULL THEN ''-'' ELSE lr END as stt2
 		FROM catnat.taxons_nat tn
 		LEFT JOIN catnat.statut_reg sr ON tn.uid = sr.uid
 		LEFT JOIN (SELECT uid, id_reg, id_statut as lr FROM catnat.statut_reg WHERE type_statut = ''LR'') 
 		as two on two.uid = sr.uid AND two.id_reg = sr.id_reg
-	GROUP BY sr.uid, sr.id_reg, stt2) as stt ON reg.id_reg = stt.id_reg AND reg.uid = stt.uid;';
-EXECUTE 'INSERT INTO exploitation.stt_lr_reg_catnat SELECT * FROM dblink(''dbname='||dbname||''','''||cmd||''') as t1 (uid integer,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer,statuts text)';
+	GROUP BY sr.uid, sr.id_reg, stt2) as stt ON reg.id_reg = stt.id_reg AND reg.uid = stt.uid;') as t1 (uid integer,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer,statuts text);
 flag = 1;
 ELSE END CASE;
 
 -- peuplement: stt_lr_nat_catnat
 CASE WHEN typ = 'lr_nat' OR typ = 'all' THEN
-cmd = 'SELECT sub.uid, stt2 as statuts_nat FROM 
+TRUNCATE exploitation.stt_lr_nat_catnat;
+INSERT INTO exploitation.stt_lr_nat_catnat 
+SELECT * FROM dblink('dbname=outil_evaluation','SELECT sub.uid, stt2 as statuts_nat FROM 
 	(SELECT sn.uid, CASE WHEN lr = ''à évaluer'' THEN ''-'' ELSE lr END as stt2 FROM catnat.statut_nat sn) as sub
 	GROUP BY sub.uid, statuts_nat
-	ORDER BY sub.uid;';
-EXECUTE 'INSERT INTO exploitation.stt_lr_nat_catnat SELECT * FROM dblink(''dbname='||dbname||''','''||cmd||''') as t1 (uid integer,statuts text)';
+	ORDER BY sub.uid;') as t1 (uid integer,statuts text);
 flag = 1;
 ELSE END CASE;
 
@@ -459,30 +456,30 @@ INSERT INTO exploitation.information_taxa_taxons
 SELECT stt_lr_reg_catnat.cd_ref, stt_lr_reg_catnat.famille, stt_lr_reg_catnat.nom_sci, stt_lr_reg_catnat.cd_rang, stt_lr_nat_catnat.statuts_nat as "National",
 "Alsace" , "Aquitaine", "Auvergne", "Basse-Normandie", "Bourgogne", "Bretagne", "Centre", "Champagne-Ardenne", "Corse", "Franche-Comté", "Haute-Normandie", "Île-de-France", "Languedoc-Roussillon", 
  "Limousin", "Lorraine",  "Midi-Pyrénées", "Nord-Pas-de-Calais", "Pays de la Loire", "Picardie", "Poitou-Charentes", "Provence-Alpes-Côte d'Azur", "Rhône-Alpes"
-FROM stt_lr_reg_catnat
-LEFT JOIN stt_lr_nat_catnat ON stt_lr_nat_catnat.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Alsace" FROM stt_lr_reg_catnat WHERE id_reg = 42) as a on a.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Aquitaine" FROM stt_lr_reg_catnat WHERE id_reg = 72) as b on b.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Auvergne" FROM stt_lr_reg_catnat WHERE id_reg = 83) as c on c.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Basse-Normandie" FROM stt_lr_reg_catnat WHERE id_reg = 25) as d on d.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Bourgogne" FROM stt_lr_reg_catnat WHERE id_reg = 26) as e on e.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Bretagne" FROM stt_lr_reg_catnat WHERE id_reg = 53) as f on f.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Centre" FROM stt_lr_reg_catnat WHERE id_reg = 24) as g on g.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Champagne-Ardenne" FROM stt_lr_reg_catnat WHERE id_reg = 21) as h on h.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Corse" FROM stt_lr_reg_catnat WHERE id_reg = 94) as i on i.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Franche-Comté" FROM stt_lr_reg_catnat WHERE id_reg = 43) as j on j.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Haute-Normandie" FROM stt_lr_reg_catnat WHERE id_reg = 23) as m on m.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Île-de-France" FROM stt_lr_reg_catnat WHERE id_reg = 11) as n on n.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Languedoc-Roussillon" FROM stt_lr_reg_catnat WHERE id_reg = 91) as o on o.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Limousin" FROM stt_lr_reg_catnat WHERE id_reg = 74) as q on q.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Lorraine" FROM stt_lr_reg_catnat WHERE id_reg = 41) as r on r.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Midi-Pyrénées" FROM stt_lr_reg_catnat WHERE id_reg = 73) as u on u.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Nord-Pas-de-Calais" FROM stt_lr_reg_catnat WHERE id_reg = 31) as v on v.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Pays de la Loire" FROM stt_lr_reg_catnat WHERE id_reg = 52) as w on w.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Picardie" FROM stt_lr_reg_catnat WHERE id_reg = 22) as x on x.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Poitou-Charentes" FROM stt_lr_reg_catnat WHERE id_reg = 54) as y on y.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Provence-Alpes-Côte d'Azur" FROM stt_lr_reg_catnat WHERE id_reg = 93) as z on z.uid=stt_lr_reg_catnat.uid
-LEFT JOIN (SELECT uid, statuts as "Rhône-Alpes" FROM stt_lr_reg_catnat WHERE id_reg = 82) as aa on aa.uid=stt_lr_reg_catnat.uid
+FROM exploitation.stt_lr_reg_catnat
+LEFT JOIN exploitation.stt_lr_nat_catnat ON stt_lr_nat_catnat.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Alsace" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 42) as a on a.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Aquitaine" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 72) as b on b.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Auvergne" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 83) as c on c.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Basse-Normandie" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 25) as d on d.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Bourgogne" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 26) as e on e.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Bretagne" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 53) as f on f.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Centre" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 24) as g on g.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Champagne-Ardenne" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 21) as h on h.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Corse" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 94) as i on i.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Franche-Comté" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 43) as j on j.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Haute-Normandie" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 23) as m on m.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Île-de-France" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 11) as n on n.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Languedoc-Roussillon" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 91) as o on o.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Limousin" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 74) as q on q.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Lorraine" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 41) as r on r.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Midi-Pyrénées" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 73) as u on u.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Nord-Pas-de-Calais" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 31) as v on v.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Pays de la Loire" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 52) as w on w.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Picardie" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 22) as x on x.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Poitou-Charentes" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 54) as y on y.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Provence-Alpes-Côte d'Azur" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 93) as z on z.uid=stt_lr_reg_catnat.uid
+LEFT JOIN (SELECT uid, statuts as "Rhône-Alpes" FROM exploitation.stt_lr_reg_catnat WHERE id_reg = 82) as aa on aa.uid=stt_lr_reg_catnat.uid
 GROUP BY stt_lr_reg_catnat.cd_ref, stt_lr_reg_catnat.famille, stt_lr_reg_catnat.nom_sci, stt_lr_reg_catnat.cd_rang, "National",
 "Alsace" , "Aquitaine", "Auvergne", "Basse-Normandie", "Bourgogne", "Bretagne", "Centre", "Champagne-Ardenne", "Corse", "Franche-Comté", "Haute-Normandie", "Île-de-France", "Languedoc-Roussillon", 
  "Limousin", "Lorraine", "Midi-Pyrénées", "Nord-Pas-de-Calais", "Pays de la Loire", "Picardie", "Poitou-Charentes", "Provence-Alpes-Côte d'Azur", "Rhône-Alpes"
@@ -527,7 +524,13 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref,
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'com'
+	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
+--- les acteurs des communes
+UPDATE exploitation.obs_commune input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
+	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
+	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
 
 --- Les maille10
 INSERT INTO exploitation.obs_maille_fr10
@@ -547,7 +550,14 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,n
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'm10'
+	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
+--- les acteurs des mailles 10
+UPDATE exploitation.obs_maille_fr10 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
+	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
+	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
+
 
 --- Les maille5
 INSERT INTO exploitation.obs_maille_fr5
@@ -566,18 +576,15 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,n
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'm5'
+	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
+--- les acteurs des mailles 5
+UPDATE exploitation.obs_maille_fr5 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
+	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
+	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
 
-	
-/*NB : il faut mettre à jour les observateurs*/
-	--string_agg(lib_orgm,',') as libelle_organisme,
-	--string_agg(nom_acteur,',') as observateur
-	-- JOIN hub.releve_acteur act ON rel.cd_jdd = act.cd_jdd AND rel.cd_releve = act.cd_releve
-
-
-out.lib_log := 'transfert OK';out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_global_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
---PERFORM hub_log ('public', out); 
-RETURN next out;
+out.lib_log := 'transfert OK';out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_global_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
