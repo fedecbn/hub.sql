@@ -287,17 +287,18 @@ flag = 0;
 /*Mise à jour de la table taxref*/
 CASE WHEN typ = 'taxref' OR typ = 'all' THEN
 EXECUTE '
-INSERT INTO exploitation.taxref(cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat)
+TRUNCATE exploitation.taxref_new;
+INSERT INTO exploitation.taxref_new(cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat)
 SELECT cd_ref::integer, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup::integer, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat
 FROM ref.taxref_v'||version||'
 WHERE (regne = ''Plantae'' OR  regne = ''Fungi'' OR regne = ''Chromista'') AND cd_nom = cd_ref
 GROUP BY cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat;
 ';
-UPDATE exploitation.taxref i SET cd_taxsup2 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref) as out WHERE out.cd_ref = i.cd_taxsup;  --- taxsup2
-UPDATE exploitation.taxref i SET cd_taxsup3 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref) as out WHERE out.cd_ref = i.cd_taxsup2; --- taxsup3
-UPDATE exploitation.taxref i SET cd_taxsup4 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref) as out WHERE out.cd_ref = i.cd_taxsup3; --- taxsup4
-UPDATE exploitation.taxref SET liste_bryo = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE liste_bryo IS TRUE GROUP BY famille, liste_bryo); /*Bryophyta et liste bryo*/
-UPDATE exploitation.taxref SET bryophyta = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE bryophyta IS TRUE GROUP BY famille, bryophyta);
+UPDATE exploitation.taxref_new i SET cd_taxsup2 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_new) as out WHERE out.cd_ref = i.cd_taxsup;  --- taxsup2
+UPDATE exploitation.taxref_new i SET cd_taxsup3 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_new) as out WHERE out.cd_ref = i.cd_taxsup2; --- taxsup3
+UPDATE exploitation.taxref_new i SET cd_taxsup4 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_new) as out WHERE out.cd_ref = i.cd_taxsup3; --- taxsup4
+UPDATE exploitation.taxref_new SET liste_bryo = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE liste_bryo IS TRUE GROUP BY famille, liste_bryo); /*Bryophyta et liste bryo*/
+UPDATE exploitation.taxref_new SET bryophyta = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE bryophyta IS TRUE GROUP BY famille, bryophyta);
 flag = 1;
 ELSE END CASE;
 
@@ -316,13 +317,16 @@ INSERT INTO exploitation.taxons_communs SELECT * FROM dblink('dbname =si_flore_n
 CASE WHEN typ = 'tela' OR typ = 'all' THEN
 TRUNCATE exploitation.information_taxons;
 INSERT INTO exploitation.information_taxons SELECT t.cd_ref, t.nom_complet,'<a href="http://www.tela-botanica.org/bdtfx-nn-'||l.num_nom|| '-synthese" target="_blank"> Lien Tela Botanica </a> <br /> <a href="http://inpn.mnhn.fr/espece/cd_nom/'||t.cd_ref||'" target="_blank"> Lien INPN </a> ' as url, l.num_nom as num_nom_tela, l.num_nom_retenu as num_nom_retenu_tela, l.nom_sci, l.cd_nom
-FROM exploitation.taxref t inner join exploitation.lien_bdtfx_taxref l on (t.cd_ref=l.cd_nom);
+FROM exploitation.taxref_new t inner join exploitation.lien_bdtfx_taxref l on (t.cd_ref=l.cd_nom);
 flag = 1;
 ELSE END CASE;
 
+/*droits sur les référentiels*/
+SELECT * FROM siflore_right();
+
 --- Log
 CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jours'; ELSE out.lib_log := 'référentiel mis à jour : '||typ; END CASE;
-out.lib_schema := '-';out.lib_table := 'exploitation.taxref';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
+out.lib_schema := '-';out.lib_table := 'exploitation.taxref_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------
@@ -353,7 +357,7 @@ CASE 	WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste'
 	WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' 
 	ELSE 'problème' END as type
 FROM hub.observation a
-JOIN exploitation.taxref z ON a.cd_ref::integer = z.cd_ref
+JOIN exploitation.taxref_new z ON a.cd_ref::integer = z.cd_ref
 GROUP BY a.cd_ref, nom_ent_ref, z.rang, liste_bryo, bryophyta;
 flag = 1;
 ELSE END CASE;
