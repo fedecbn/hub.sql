@@ -502,45 +502,40 @@ END;$BODY$LANGUAGE plpgsql;
 --- Description : Pour mettre à jour la structure du FSD lors de changement benin (type de donnée, clé primaire)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_refresh(libSchema varchar) RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_admin_refresh(libSchema varchar, typ varchar = 'date') RETURNS setof zz_log  AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
 DECLARE libTable varchar;
 DECLARE sch_from varchar;
 DECLARE sch_to varchar;
 BEGIN
-EXECUTE '
-SELECT * FROM hub_admin_clone('''||libSchema||'_''); 
-';
+CASE WHEN typ = 'date' THEN
+	EXECUTE 'ALTER TABLE '||libSchema||'.releve ALTER COLUMN date_debut SET DATA TYPE date USING date_debut::date;
+		ALTER TABLE '||libSchema||'.releve ALTER COLUMN date_fin SET DATA TYPE date USING date_fin::date;';
+	out.lib_log := 'Refresh date OK';
+ELSE
+	EXECUTE 'SELECT * FROM hub_admin_clone('''||libSchema||'_''); ';
+	sch_from = libSchema;
+	sch_to = libSchema||'_';
 
-sch_from = libSchema;
-sch_to = libSchema||'_';
+	--- Pour les tables du FSD
+	FOR libTable IN SELECT DISTINCT cd_table FROM ref.fsd LOOP 
+		EXECUTE 'INSERT INTO '||sch_to||'.'||libTable||' SELECT * FROM '||sch_from||'.'||libTable||';
+			INSERT INTO '||sch_to||'.temp_'||libTable||' SELECT * FROM '||sch_from||'.temp_'||libTable||';';
+		END LOOP;
+	--- Pour les logs
+	EXECUTE 'INSERT INTO '||sch_to||'.zz_log SELECT * FROM '||sch_from||'.zz_log;
+		INSERT INTO '||sch_to||'.zz_log_liste_taxon SELECT * FROM '||sch_from||'.zz_log_liste_taxon;
+		INSERT INTO '||sch_to||'.zz_log_liste_taxon_et_infra SELECT * FROM '||sch_from||'.zz_log_liste_taxon_et_infra;';
 
---- Pour les tables du FSD
-FOR libTable IN SELECT DISTINCT cd_table FROM ref.fsd
-	LOOP EXECUTE '
-		INSERT INTO '||sch_to||'.'||libTable||' SELECT * FROM '||sch_from||'.'||libTable||';
-		INSERT INTO '||sch_to||'.temp_'||libTable||' SELECT * FROM '||sch_from||'.temp_'||libTable||';
-		';
-	END LOOP;
---- Pour les logs
-EXECUTE '
-	INSERT INTO '||sch_to||'.zz_log SELECT * FROM '||sch_from||'.zz_log;
-	INSERT INTO '||sch_to||'.zz_log_liste_taxon SELECT * FROM '||sch_from||'.zz_log_liste_taxon;
-	INSERT INTO '||sch_to||'.zz_log_liste_taxon_et_infra SELECT * FROM '||sch_from||'.zz_log_liste_taxon_et_infra;
-	';
-
---- Ajouter une partie pour remettre les droits nécessaires ==> information_schema.column_privileges
-
-EXECUTE '
-DROP SCHEMA '||sch_from||' CASCADE;
-ALTER SCHEMA '||sch_to||' RENAME TO '||sch_from||';
-';
-
+	--- Ajouter une partie pour remettre les droits nécessaires ==> information_schema.column_privileges
+	EXECUTE 'DROP SCHEMA '||sch_from||' CASCADE;ALTER SCHEMA '||sch_to||' RENAME TO '||sch_from||';';
+	out.lib_log := 'Refresh all OK';
+END CASE;
 
 
 --- Output&Log
-out.lib_log := 'Refresh OK';out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------------------------------
