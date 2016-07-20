@@ -19,7 +19,7 @@
 --- SELECT * FROM hub_import('hub','taxa','D:/Temp/import/');
 
 --- 4. Vérifier le jeu de données (ex : TAXA)
---- SELECT * FROM hub_verif_all('hub','taxa');
+--- SELECT * FROM hub_verif('hub','taxa');
 
 --- 5. Pousser les données dans la partie propre (ex : TAXA)
 --- SELECT * FROM hub_push('hub','taxa');
@@ -1634,6 +1634,7 @@ DECLARE ref threecol%rowtype;
 DECLARE val varchar;
 DECLARE flag integer;
 DECLARE compte integer;
+DECLARE version_taxref integer;
 BEGIN
 --- Output
 out.lib_schema := libSchema;out.typ_log := 'hub_verif';SELECT CURRENT_TIMESTAMP INTO out.date_log;
@@ -1751,10 +1752,9 @@ ELSE END CASE;
 
 --- Test concernant la cohérence sur les dates
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
-	--- date_debut
 	EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_releve" WHERE hub_verif_date(date_debut) IS FALSE OR hub_verif_date(date_fin) IS FALSE' INTO compte;
 	CASE WHEN compte = 0 THEN
-		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_releve WHERE date_debut > date fin'  INTO compte;
+		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date'  INTO compte;
 		CASE WHEN (compte > 0) THEN
 			--- log
 			out.lib_table := 'releve'; out.lib_champ := 'date_debut'; out.lib_log := 'Valeur(s) non cohérente(s) => SELECT * FROM hub_verif_plus('''||libSchema||''',''releve'',''date_debut'',''coh_date'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
@@ -1764,18 +1764,17 @@ CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
 ELSE END CASE;
 
 --- Test concernant la cohérence sur les taxon
-CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
-	--- Les dates
-	EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE hub_verif_date('||libChamp||') IS FALSE' INTO compte;
-	CASE WHEN compte = 0 THEN
-		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_releve WHERE date_debut > date fin'  INTO compte;
+CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
+	FOR version_taxref IN 2..9 LOOP
+		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_observation a LEFT JOIN ref.taxref_v'||version_taxref||' z ON a.cd_ref = z.cd_nom WHERE z.cd_nom IS NULL AND cd_reftaxo = ''TAXREF'' AND version_reftaxo = '''||version_taxref||''''  INTO compte;
 		CASE WHEN (compte > 0) THEN
 			--- log
-			out.lib_table := 'releve'; out.lib_champ := 'date_debut et date_fin'; out.lib_log := 'Valeur(s) non cohérente(s) => SELECT * FROM hub_verif_plus('''||libSchema||''',''releve'',''date_debut'',''coherence'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
+			out.lib_table := 'observation'; out.lib_champ := 'cd_ref'; out.lib_log := 'Valeur(s) non cohérente(s) - TAXREF v'||version_taxref||' => SELECT * FROM hub_verif_plus('''||libSchema||''',''observation'',''cd_ref'',''coh_taxref_data'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
 			out.lib_log := typJdd ||' : Valeur(s) non cohérente(s)';PERFORM hub_log (libSchema, out);
 		ELSE END CASE;
-	ELSE END CASE;
+	END LOOP;
 ELSE END CASE;
+
 
 --- Le 100%
 CASE WHEN out.lib_log = '' THEN
@@ -1853,8 +1852,18 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
-	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut > date fin' LOOP 
+	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date' LOOP 
 	out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out; END LOOP;
+ELSE END CASE;
+
+--- Test concernant le vocbulaire controlé
+CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
+	FOR version_taxref IN 2..9 LOOP
+		FOR champRefSelected IN EXECUTE 'SELECT cd_obs_mere FROM '||libSchema||'.temp_observation a LEFT JOIN ref.taxref_v'||version_taxref||' z ON a.cd_ref = z.cd_nom WHERE z.cd_nom IS NULL AND cd_reftaxo = ''TAXREF'' AND version_reftaxo = '''||version_taxref||'''' LOOP 
+		out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; 
+		out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_observation" WHERE cd_obs_mere = '''||champRefSelected||''''; return next out; 
+		END LOOP;
+	END LOOP;
 ELSE END CASE;
 
 --- Log général
