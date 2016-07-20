@@ -1749,6 +1749,34 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libell
 	END LOOP;
 ELSE END CASE;
 
+--- Test concernant la cohérence sur les dates
+CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
+	--- date_debut
+	EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_releve" WHERE hub_verif_date(date_debut) IS FALSE OR hub_verif_date(date_fin) IS FALSE' INTO compte;
+	CASE WHEN compte = 0 THEN
+		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_releve WHERE date_debut > date fin'  INTO compte;
+		CASE WHEN (compte > 0) THEN
+			--- log
+			out.lib_table := 'releve'; out.lib_champ := 'date_debut'; out.lib_log := 'Valeur(s) non cohérente(s) => SELECT * FROM hub_verif_plus('''||libSchema||''',''releve'',''date_debut'',''coh_date'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
+			out.lib_log := typJdd ||' : Valeur(s) non cohérente(s)';PERFORM hub_log (libSchema, out);
+		ELSE END CASE;
+	ELSE END CASE;
+ELSE END CASE;
+
+--- Test concernant la cohérence sur les taxon
+CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
+	--- Les dates
+	EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_'||libTable||'" WHERE hub_verif_date('||libChamp||') IS FALSE' INTO compte;
+	CASE WHEN compte = 0 THEN
+		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_releve WHERE date_debut > date fin'  INTO compte;
+		CASE WHEN (compte > 0) THEN
+			--- log
+			out.lib_table := 'releve'; out.lib_champ := 'date_debut et date_fin'; out.lib_log := 'Valeur(s) non cohérente(s) => SELECT * FROM hub_verif_plus('''||libSchema||''',''releve'',''date_debut'',''coherence'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
+			out.lib_log := typJdd ||' : Valeur(s) non cohérente(s)';PERFORM hub_log (libSchema, out);
+		ELSE END CASE;
+	ELSE END CASE;
+ELSE END CASE;
+
 --- Le 100%
 CASE WHEN out.lib_log = '' THEN
 	out.lib_table := '-'; out.lib_champ := typVerif; out.lib_log := jdd||' conformes pour '||typVerif; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out); return next out;
@@ -1822,6 +1850,12 @@ CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
 	END CASE;
 ELSE --- rien
 END CASE;
+
+--- Test concernant le vocbulaire controlé
+CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
+	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut > date fin' LOOP 
+	out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out; END LOOP;
+ELSE END CASE;
 
 --- Log général
 RETURN;END;$BODY$ LANGUAGE plpgsql;
