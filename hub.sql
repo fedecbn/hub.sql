@@ -513,7 +513,7 @@ END;$BODY$LANGUAGE plpgsql;
 --- Description : Pour mettre à jour la structure du FSD lors de changement benin (type de donnée, clé primaire)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_refresh(libSchema varchar, typ varchar = 'date') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_admin_refresh(libSchema varchar, typ varchar = null) RETURNS setof zz_log  AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
 DECLARE result threecol%rowtype;
@@ -533,7 +533,18 @@ WHEN typ = 'check' THEN
 		END CASE;
 		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
 	END LOOP;
-ELSE
+	out.lib_log := 'Refresh CHECK OK';
+WHEN typ = 'maille' THEN
+	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET cd_geo = ''10kmL93''||cd_geo WHERE typ_geo = ''m10'' AND cd_geo NOT LIKE ''10kmL93%'';';
+	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET cd_geo = ''10kmL93''||cd_geo WHERE typ_geo = ''m10'' AND cd_geo NOT LIKE ''10kmL93%'';';
+	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET cd_geo = ''5kmL93''||cd_geo WHERE typ_geo = ''m5'' AND cd_geo NOT LIKE ''5kmL93%'';';
+	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET cd_geo = ''5kmL93''||cd_geo WHERE typ_geo = ''m5'' AND cd_geo NOT LIKE ''5kmL93%'';';
+	out.lib_log := 'Refresh maille OK';
+WHEN typ = 'lib_commune' THEN
+	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
+	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
+	out.lib_log := 'Refresh commune OK';
+WHEN typ = 'all' THEN
 	EXECUTE 'SELECT * FROM hub_admin_clone('''||libSchema||'_''); ';
 	sch_from = libSchema;
 	sch_to = libSchema||'_';
@@ -551,6 +562,7 @@ ELSE
 	--- Ajouter une partie pour remettre les droits nécessaires ==> information_schema.column_privileges
 	EXECUTE 'DROP SCHEMA '||sch_from||' CASCADE;ALTER SCHEMA '||sch_to||' RENAME TO '||sch_from||';';
 	out.lib_log := 'Refresh all OK';
+ELSE out.lib_log := 'No refresh';
 END CASE;
 
 
