@@ -135,20 +135,20 @@ DROP SCHEMA IF EXISTS exploitation CASCADE; CREATE SCHEMA exploitation;
 --- Table: exploitation.commentaires;
 CREATE TABLE exploitation.commentaires (id serial NOT NULL,  comment text NOT NULL,  nom character varying NOT NULL,  prenom character varying,  utilisateur character varying,  email character varying,  cd_ref integer,  id_obj character varying,  date_com date,  type_com character varying,  priorite_com character varying,  action_com character varying,  id_flore_fcbn character varying,  nom_complet character varying,  comment2 text[],  CONSTRAINT commentaire_id_pkey PRIMARY KEY (id));
 --- Table: exploitation.obs_commune;
-CREATE TABLE exploitation.obs_commune(cd_jdd character varying,id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  libelle_type_localisation character varying,  libelle_type_rattachement character varying,  insee_comm character varying NOT NULL,  nom_comm character varying,  geom geometry,  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  CONSTRAINT obs_commune_pkey PRIMARY KEY (id_flore_fcbn, insee_comm));
+CREATE TABLE exploitation.obs_commune(id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  libelle_type_localisation character varying,  libelle_type_rattachement character varying,  insee_comm character varying NOT NULL,  nom_comm character varying,  geom geometry,  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  cd_jdd character varying, CONSTRAINT obs_commune_pkey PRIMARY KEY (id_flore_fcbn, insee_comm));
 DROP INDEX IF EXISTS exploitation.obs_commune_cd_ref_idk;CREATE INDEX obs_commune_cd_ref_idk  ON exploitation.obs_commune  USING btree  (cd_ref);
 DROP INDEX IF EXISTS exploitation.obs_commune_geom_gist;CREATE INDEX obs_commune_geom_gist  ON exploitation.obs_commune  USING gist  (geom);
 DROP INDEX IF EXISTS exploitation.obs_commune_insee_comm_idk;CREATE INDEX obs_commune_insee_comm_idk  ON exploitation.obs_commune  USING btree  (insee_comm COLLATE pg_catalog."default");
 DROP INDEX IF EXISTS exploitation.obs_commune_nom_comm_idk;CREATE INDEX obs_commune_nom_comm_idk  ON exploitation.obs_commune  USING btree  (nom_comm COLLATE pg_catalog."default");
 DROP INDEX IF EXISTS exploitation.obs_commune_cd_jdd_idk;CREATE INDEX obs_commune_cd_jdd_idk  ON exploitation.obs_commune  USING btree  (cd_jdd);
 --- Table: exploitation.obs_maille_fr10
-CREATE TABLE exploitation.obs_maille_fr10(cd_jdd character varying,id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  cd_sig character varying NOT NULL,  libelle_type_localisation character varying,  libelle_type_rattachement character varying,  geom geometry(MultiPolygon,2154),  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  CONSTRAINT obs_maille_fr10_pkey PRIMARY KEY (id_flore_fcbn, cd_sig));
+CREATE TABLE exploitation.obs_maille_fr10(id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  cd_sig character varying NOT NULL,  libelle_type_localisation character varying,  libelle_type_rattachement character varying,  geom geometry(MultiPolygon,2154),  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying, cd_jdd character varying, CONSTRAINT obs_maille_fr10_pkey PRIMARY KEY (id_flore_fcbn, cd_sig));
 DROP INDEX IF EXISTS exploitation.obs_maille_fr10_cd_ref_idk; CREATE INDEX obs_maille_fr10_cd_ref_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_ref);
 DROP INDEX IF EXISTS exploitation.obs_maille_fr10_cd_sig_idk; CREATE INDEX obs_maille_fr10_cd_sig_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_sig COLLATE pg_catalog."default");
 DROP INDEX IF EXISTS exploitation.obs_maille_fr10_geom_gist; CREATE INDEX obs_maille_fr10_geom_gist ON exploitation.obs_maille_fr10  USING gist  (geom);
 DROP INDEX IF EXISTS exploitation.obs_maille_fr10_cd_jdd_idk;CREATE INDEX obs_maille_fr10_cd_jdd_idk  ON exploitation.obs_maille_fr10  USING btree  (cd_jdd);
 -- Table: exploitation.obs_maille_fr5
-CREATE TABLE exploitation.obs_maille_fr5 (cd_jdd character varying,id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  cd_sig character varying NOT NULL,  libelle_type_localisation character varying(20),  libelle_type_rattachement character varying,  geom geometry(MultiPolygon,2154),  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying,  CONSTRAINT obs_maille_fr5_pkey PRIMARY KEY (id_flore_fcbn, cd_sig));
+CREATE TABLE exploitation.obs_maille_fr5 (id_flore_fcbn character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  libelle_statut_pop character varying,  libelle_court_bd_mere character varying,  libelle_usage_donnee character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  remarque_donnee_mere character varying,  libelle_nature_date character varying,  remarque_date character varying,  remarque_lieu character varying,  libelle_type_source character varying,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date,  date_fin_obs date,  date_transmission date,  id_flore_mere character varying,  cd_sig character varying NOT NULL,  libelle_type_localisation character varying(20),  libelle_type_rattachement character varying,  geom geometry(MultiPolygon,2154),  statut_pop character varying,  nom_observateur character varying,  prenom_observateur character varying,  libelle_organisme character varying,  observateur character varying, cd_jdd character varying, CONSTRAINT obs_maille_fr5_pkey PRIMARY KEY (id_flore_fcbn, cd_sig));
 DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_ref_idk;CREATE INDEX obs_maille_fr5_cd_ref_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_ref);
 DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_sig_idk;CREATE INDEX obs_maille_fr5_cd_sig_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_sig COLLATE pg_catalog."default");
 DROP INDEX IF EXISTS exploitation.obs_maille_fr5_geom_gist;CREATE INDEX obs_maille_fr5_geom_gist  ON exploitation.obs_maille_fr5  USING gist  (geom);
@@ -255,7 +255,7 @@ WHEN opt = 'drop' THEN
 ELSE out.lib_log := 'Paramètre incorrecte';
 END CASE;
 --- Log
-out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_right';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN NEXT out;
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_right';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('hub', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -320,7 +320,7 @@ SELECT * FROM siflore_right();
 
 --- Log
 CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jours'; ELSE out.lib_log := 'référentiel mis à jour : '||typ; END CASE;
-out.lib_schema := '-';out.lib_table := 'exploitation.taxref_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('public', out);RETURN NEXT out;
+out.lib_schema := '-';out.lib_table := 'exploitation.taxref_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('hub', out);RETURN NEXT out;PERFORM hub_log ('hub', out);
 END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------
@@ -489,7 +489,7 @@ ELSE END CASE;
 
 --- Log
 CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jour'; ELSE out.lib_log := 'synthèses mis à jour : '||typ; END CASE;
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out); RETURN next out;
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('hub', out); RETURN next out;PERFORM hub_log ('hub', out);
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -506,10 +506,29 @@ $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE jdd threecol%rowtype;
 DECLARE cmd varchar;
+DECLARE ct integer;
 BEGIN 
+--- log
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert';SELECT CURRENT_TIMESTAMP INTO out.date_log;
 --- Les communes
-INSERT INTO exploitation.obs_commune
-SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
+SELECT count(*) INTO ct FROM hub.observation as obs 
+	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
+	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
+	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
+	JOIN ref.geo_commune com ON ter.cd_geo = com.insee_comm
+	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
+	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
+	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
+	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
+	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
+	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	WHERE typ_geo = 'com'
+	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
+	AND cd_validite = 1;
+-- intégration
+CASE WHEN ct <> 0 THEN
+	INSERT INTO exploitation.obs_commune
+	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
 	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,tso.libelle_valeur as libelle_type_source,	null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,	null as auteur_doc,null as ref_doc,null as code_herbarium,null as code_index_herbariorum,null as nom_herbarium,	cd_herbier as code_herbier,
 	lib_herbier as nom_herbier,null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,	date_fin::date as date_fin_obs,	null as date_transmission,cd_ent_mere as id_flore_mere,	cfg.libelle_valeur, mog.libelle_valeur,cd_geo, lib_geo, com.geom,statut_pop,null as nom_observateur,	null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur,meta.cd_jdd as cd_jdd
 	FROM hub.observation as obs
@@ -527,14 +546,33 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref,
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 --- les acteurs des communes
-UPDATE exploitation.obs_commune input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	UPDATE exploitation.obs_commune input SET libelle_organisme = nom_acteur, observateur = lib_orgm
 	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
 	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
+	out.lib_log := 'Communes transférées';out.nb_occurence := ct||' occurence(s)';PERFORM hub_log ('hub', out); RETURN next out;
+ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
+END CASE;
 
 --- Les maille10
+SELECT count(*) INTO ct FROM hub.observation as obs
+	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
+	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
+	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
+	JOIN ref.geo_maille10 m10 ON ter.cd_geo = m10.cd_sig
+	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
+	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
+	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
+	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
+	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
+	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	WHERE typ_geo = 'm10'
+	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
+	AND cd_validite = 1;
+-- intégration
+CASE WHEN ct <> 0 THEN
 INSERT INTO exploitation.obs_maille_fr10
-SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
+	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
 	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop,lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,
 	tso.libelle_valeur as libelle_type_source,null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,null as part_herbier,null as id_part,
 	null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,	null as date_transmission,	cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m10.geom, statut_pop,null as nom_observateur,null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur,meta.cd_jdd as cd_jdd
@@ -553,15 +591,33 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,n
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 --- les acteurs des mailles 10
-UPDATE exploitation.obs_maille_fr10 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	UPDATE exploitation.obs_maille_fr10 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
 	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
 	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
-
+	out.lib_log := 'Maille10 transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
+ELSE out.lib_log := 'aucune Maille10 transférée';out.nb_occurence := '0'; RETURN next out;PERFORM hub_log ('hub', out);
+END CASE;
 
 --- Les maille5
+SELECT count(*) INTO ct FROM hub.observation as obs
+	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
+	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
+	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
+	JOIN ref.geo_maille5 m5 ON ter.cd_geo = m5.cd_sig
+	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
+	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
+	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
+	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
+	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
+	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	WHERE typ_geo = 'm5'
+	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
+	AND cd_validite = 1;
+-- intégration	
+CASE WHEN ct <> 0 THEN
 INSERT INTO exploitation.obs_maille_fr5
-SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet, cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,
+	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet, cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,
 	ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,tso.libelle_valeur as libelle_type_source,	null as type_doc,cd_biblio as cote_biblio_cbn,	lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,	null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,
 	null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,null as date_transmission,cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m5.geom,statut_pop,null as nom_observateur,null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur	,meta.cd_jdd as cd_jdd
 	FROM hub.observation as obs
@@ -579,12 +635,14 @@ SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,n
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 --- les acteurs des mailles 5
-UPDATE exploitation.obs_maille_fr5 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	UPDATE exploitation.obs_maille_fr5 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
 	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
 	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
+	out.lib_log := 'Maille5 transférées';		out.nb_occurence := ct||' occurence(s)'; 	RETURN next out;PERFORM hub_log ('hub', out);
+ELSE 	out.lib_log := 'Aucune Maille5 transférée';	out.nb_occurence := '0'; 			RETURN next out;PERFORM hub_log ('hub', out);
+END CASE;
 
-out.lib_log := 'transfert OK';out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_global_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -607,7 +665,7 @@ BEGIN
 connction = 'dbname=si_flore_national port=5433';
 --- Commande
 -- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
-EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', ''data'', '''||libSchema||''', ''hub'');';
+EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', ''data'', '''||libSchema||''', ''hub'');' into out; RETURN next out;
 /*problèmes code maille*/
 UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
 UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' AND cd_geo NOT LIKE '5kmL93%';
@@ -619,12 +677,12 @@ FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
 	EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||listJdd||''';';
 END LOOP;	
 
-SELECT * INTO out FROM siflore_insert();
-SELECT * INTO out FROM hub_truncate('hub','propre');
+SELECT * INTO out FROM siflore_insert(); RETURN next out;
+SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
 
 -- log
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; 
-PERFORM hub_log ('public', out); RETURN next out;
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; 
+PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
