@@ -1430,8 +1430,11 @@ CASE WHEN jdd = 'data' THEN champRef = 'cd_obs_perm'; tableRef = 'table_name LIK
 			ELSE flag := 0;
 		END CASE;
 	END CASE;
---- mode 1 = intra Shema / mode 2 = entre schema et agregation
-CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; ELSE flag :=0; END CASE;
+--- mode 1 = intra Shema / mode 2 = entre schema et agregation / mode 3 = entre agregation et schema
+CASE 	WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; 
+	WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; 
+	WHEN mode = 3 THEN schemaSource :='agregation'; schemaDest :=libSchema; 
+	ELSE flag :=0; END CASE;
 
 --- Commandes
 --- Remplacement total (NB : equivalent au push 'replace' mais dans l'autre sens)
@@ -1439,13 +1442,19 @@ CASE WHEN flag = 1 THEN
 	SELECT * INTO out FROM hub_clear(libSchema, jdd, 'temp'); return next out;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE table_name LIKE ''metadonnees%'' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP
 		ct = ct+1;
-		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
+		CASE	WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; 
+			WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; 
+			WHEN mode = 3 THEN tableSource := 'temp_'||libTable; tableDest := libTable; 
+			END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 	FOR libTable in EXECUTE 'SELECT DISTINCT table_name FROM information_schema.tables WHERE '||tableRef||' AND table_schema = '''||libSchema||''' ORDER BY table_name;' LOOP 
 		ct = ct+1;
-		CASE WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; END CASE;
+		CASE 	WHEN mode = 1 THEN tableSource := libTable; tableDest := 'temp_'||libTable; 
+			WHEN mode = 2 THEN tableSource := 'temp_'||libTable; tableDest := libTable; 
+			WHEN mode = 3 THEN tableSource := 'temp_'||libTable; tableDest := libTable; 
+			END CASE;
 		SELECT * INTO out FROM hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd, 'push_total'); 
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
