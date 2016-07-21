@@ -32,10 +32,10 @@
 --- Fonction Admin 
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
+CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp,user_log varchar);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
-DROP TABLE twocol CASCADE;	CREATE TABLE public.twocol (col1 varchar, col2 varchar);
-DROP TABLE threecol CASCADE;	CREATE TABLE public.threecol (col1 varchar, col2 varchar, col3 varchar);
+DROP TABLE IF EXISTS twocol CASCADE;	CREATE TABLE public.twocol (col1 varchar, col2 varchar);
+DROP TABLE IF EXISTS threecol CASCADE;	CREATE TABLE public.threecol (col1 varchar, col2 varchar, col3 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_init
@@ -172,13 +172,12 @@ ELSE
 	CREATE TABLE "'||schema_lower||'".zz_log_liste_taxon_et_infra  (cd_ref_demande character varying, nom_valide_demande character varying, cd_ref_cite character varying, nom_complet_cite character varying, rang_cite character varying, cd_taxsup_cite character varying);
 	';
 	--- LOG
-	EXECUTE '
-	CREATE TABLE "'||schema_lower||'".zz_log  (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
-	';
+	EXECUTE 'CREATE TABLE "'||schema_lower||'".zz_log  AS SELECT * FROM public.zz_log LIMIT 0;';
 	out.lib_log := 'Schema '||schema_lower||' créé';
 END CASE;
 --- Output&Log
-out.lib_schema := schema_lower;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (schema_lower, out);RETURN NEXT out;
+out.lib_schema := schema_lower;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+PERFORM hub_log (schema_lower, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -200,7 +199,7 @@ CASE flag WHEN 1 THEN
 ELSE out.lib_log := 'Schema '||libSchema||' inexistant pas dans le Hub';
 END CASE;
 --- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -220,7 +219,7 @@ DECLARE delimitr varchar;
 DECLARE structure varchar;
 BEGIN
 --- Output
-out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 ---Variables
 
 --- Commandes 
@@ -412,7 +411,7 @@ EXECUTE 'CREATE USER "'||utilisateur||'" PASSWORD '''||mdp||''';
 ELSE out.lib_log := 'ERREUR : '||utilisateur||' existe déjà';
 END CASE;
 
-out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -451,7 +450,7 @@ CASE WHEN exist IS NOT NULL AND role = 'lecteur' THEN
 		';
 	ELSE END CASE;
 
-out.lib_log := utilisateur||' a les droits de '||role||' sur '||schma;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_rigth_add';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := utilisateur||' a les droits de '||role||' sur '||schma;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_rigth_add';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -485,7 +484,7 @@ FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHE
 EXECUTE 'SELECT * FROM hub_admin_right_dblink ('''||utilisateur||''', false)';
 
 --- Output&Log
-out.lib_log := 'Droits supprimés pour '||utilisateur;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_right_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := 'Droits supprimés pour '||utilisateur;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_right_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -504,7 +503,7 @@ SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catal
 EXECUTE 'SELECT * FROM hub_admin_right_drop('''||utilisateur||''')';
 EXECUTE 'DROP USER IF EXISTS "'||utilisateur||'";';
 --- Output&Log
-out.lib_log := utilisateur||' supprimé';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := utilisateur||' supprimé';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -544,6 +543,9 @@ WHEN typ = 'lib_commune' THEN
 	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
 	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
 	out.lib_log := 'Refresh commune OK';
+WHEN typ = 'zz_log' THEN
+	EXECUTE 'ALTER TABLE '||libSchema||'.zz_log ADD COLUMN user_log varchar;';
+	out.lib_log := 'Refresh zz_log OK';
 WHEN typ = 'all' THEN
 	EXECUTE 'SELECT * FROM hub_admin_clone('''||libSchema||'_''); ';
 	sch_from = libSchema;
@@ -567,7 +569,7 @@ END CASE;
 
 
 --- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------------------------------------------------
@@ -604,7 +606,7 @@ BEGIN
 source := '"'||schemaSource||'"."'||tableSource||'"';
 destination := '"'||schemaDest||'"."'||tableDest||'"';
 --- Output&Log
-out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Commande
 SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
@@ -662,7 +664,7 @@ $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN
 --- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_bilan';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_bilan';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.user_log := current_user;
 --- Commandes
 EXECUTE '
 UPDATE public.bilan SET 
@@ -706,7 +708,7 @@ CASE WHEN flag = 1 THEN
 	PERFORM (libSchema, out);RETURN NEXT out;
 ELSE 
 	--- Output&Log
-	out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+	out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 	out.lib_log = 'pas de jdd '||jdd;PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
 END; $BODY$ LANGUAGE plpgsql;
@@ -741,7 +743,7 @@ ELSE
 	EXECUTE 'SELECT typ_jdd FROM "'||fromlibSchema||'".'||fromprefixe||'metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
 END CASE;
 --- Output&Log
-out.lib_schema := tolibSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear_plus';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := tolibSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_clear_plus';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Commandes
 CASE WHEN listJdd <> 'vide' THEN
 	FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
@@ -782,7 +784,7 @@ FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;' LOOP
 	EXECUTE 'TRUNCATE '||libSchema||'.'||prefixe||libTable||';'; 
 END LOOP;
 --- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_truncate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'prefixe = '||prefixe;PERFORM hub_log (libSchema, out);RETURN NEXT out;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_truncate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'prefixe = '||prefixe;PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -806,7 +808,7 @@ DECLARE cmd varchar;
 BEGIN
 --- Variables
 connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
-out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
 --- Vérification qu'aucune connexion n'est déjà ouverte.
 SELECT dblink_get_connections() INTO connecte_list;
@@ -842,7 +844,7 @@ END LOOP;
 
 --- Output&Log
 out.lib_log := jdd||' importé';
-out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 PERFORM hub_log (libSchema_to, out);RETURN next out;
 
 END;$BODY$ LANGUAGE plpgsql;
@@ -869,7 +871,7 @@ DECLARE cmd varchar;
 BEGIN
 --- Variables
 connction = conect;
-out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_simple_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_simple_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
 --- Vérification qu'aucune connexion n'est déjà ouverte.
 SELECT dblink_get_connections() INTO connecte_list;
@@ -905,7 +907,7 @@ END LOOP;
 
 --- Output&Log
 out.lib_log := jdd||' importé';
-out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 PERFORM hub_log (libSchema_to, out);RETURN next out;
 
 END;$BODY$ LANGUAGE plpgsql;
@@ -929,7 +931,7 @@ BEGIN
 --- Variables
 connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
 --- Log
-out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
 
 --- Case all
@@ -972,7 +974,7 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 END LOOP;
 
 --- Output&Log
-out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 
@@ -994,7 +996,7 @@ BEGIN
 --- Variables
 connction = 'dbname=si_flore_national port=5433';
 --- Log
-out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
 
 --- Case all
@@ -1037,7 +1039,7 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 END LOOP;
 
 --- Output&Log
-out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -1067,7 +1069,7 @@ ELSE listJdd := ''''||jdd||'''';END CASE;
 source := '"'||schemaSource||'"."'||tableSource||'"';
 destination := '"'||schemaDest||'"."'||tableDest||'"';
 --- Output&Log
-out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-';out.typ_log := 'hub_del'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-';out.typ_log := 'hub_del'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
 --- Commande
 EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
@@ -1168,7 +1170,7 @@ ELSE out.lib_table := libTable; out.lib_log := jdd||' n''est pas un jeu de donn�
 END CASE;
 
 --- Last log
-out.typ_log := 'hub_diff'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-'; out.nb_occurence := ct||' tables analysées';
+out.typ_log := 'hub_diff'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user; out.lib_table := '-'; out.lib_champ := '-'; out.nb_occurence := ct||' tables analysées';
 CASE WHEN ct = ct2 AND typAction = 'del' THEN out.lib_log := 'Aucun point commun sur le jdd '||jdd;  
 	WHEN ct <> ct2 AND typAction = 'del' THEN out.lib_log := 'Des points communs sont présents - jdd '||jdd; 
 	WHEN ct = ct2 AND typAction = 'add' THEN out.lib_log := 'Aucune différence sur le jdd '||jdd;
@@ -1209,7 +1211,7 @@ ELSE
 END CASE;
 CASE WHEN source = 'temp' THEN source = 'temp_'; ELSE END CASE;
 --- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_export';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_export';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Commandes
 CASE WHEN format = 'fcbn' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd '||typJdd||''
@@ -1257,7 +1259,7 @@ CASE 	WHEN champ_perm = 'cd_jdd_perm' 	THEN champMere = 'cd_jdd';	tableRef = 'te
 END CASE;
 cpt1 = 0;cpt2 = 0;
 --- Output
-out.lib_schema := libSchema;out.lib_table := tableRef;out.lib_champ := champ_perm;out.typ_log := 'hub_idperm'; SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema;out.lib_table := tableRef;out.lib_champ := champ_perm;out.typ_log := 'hub_idperm'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Commandes
 FOR jeudedonnee IN EXECUTE 'SELECT CASE WHEN cd_jdd IS NULL THEN ''vide'' ELSE cd_jdd END as cd_jdd FROM '||libSchema||'.temp_metadonnees '||wherejdd||';'
 	LOOP
@@ -1337,7 +1339,7 @@ END CASE;
 --- ELSE out.lib_log := 'Problème identifié (Soit le jdd soit le fichier)'; END CASE;
 
 --- Output&Log
-out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := '-';out.typ_log := 'hub_import';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := '-';out.typ_log := 'hub_import';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$  LANGUAGE plpgsql;
 
 
@@ -1359,7 +1361,7 @@ CASE WHEN files <> '' THEN
 ELSE out.lib_log := 'Paramètre "files" incorrect'; END CASE;
 
 --- Output&Log
-out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon';out.typ_log := 'hub_import_taxon';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon';out.typ_log := 'hub_import_taxon';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$  LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -1394,7 +1396,7 @@ EXECUTE 'update  "'||libSchema||'".zz_log_liste_taxon_et_infra set nom_valide_de
 out.lib_log := 'Liste de sous taxons générée';
 
 --- Output&Log
-out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon_et_infra';out.typ_log := 'hub_txinfra';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log (libSchema, out);RETURN next out;
+out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := 'zz_log_liste_taxon_et_infra';out.typ_log := 'hub_txinfra';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$  LANGUAGE plpgsql;
 
 
@@ -1459,11 +1461,11 @@ CASE WHEN flag = 1 THEN
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 ELSE ---Log
-	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_pull';SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_log := 'ERREUR : sur champ jdd = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
+	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_pull';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user; out.lib_log := 'ERREUR : sur champ jdd = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
 
 ---Log final
-out.typ_log := 'hub_pull'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';
+out.typ_log := 'hub_pull'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user; out.lib_table := '-'; out.lib_champ := '-';
 CASE 
 WHEN (ct = ct2) THEN out.lib_log := 'Partie propre vide - jdd = '||jdd; out.nb_occurence := '-'; 
 WHEN (ct <> ct2) THEN out.lib_log := 'Données tirées - jdd = '||jdd; out.nb_occurence := '-';
@@ -1536,11 +1538,11 @@ WHEN typAction = 'del' THEN
 			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
 	END LOOP;
 ELSE ---Log
-	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_push';SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_log := 'ERREUR : sur champ action = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
+	out.lib_schema := libSchema; out.lib_champ := '-'; out.typ_log := 'hub_push';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user; out.lib_log := 'ERREUR : sur champ action = '||jdd; PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END CASE;
 
 ---Log final
-out.typ_log := 'hub_push'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.lib_table := '-'; out.lib_champ := '-';
+out.typ_log := 'hub_push'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user; out.lib_table := '-'; out.lib_champ := '-';
 CASE 
 WHEN (ct = ct2) AND typAction = 'replace' THEN out.lib_log := 'Partie temporaire vide - jdd = '||jdd; out.nb_occurence := jdd; 
 WHEN (ct <> ct2) AND typAction = 'replace' THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := jdd;
@@ -1584,7 +1586,7 @@ ELSE listJdd := ''''||jdd||'''';END CASE;
 source := '"'||schemaSource||'"."'||tableSource||'"';
 destination := '"'||schemaDest||'"."'||tableDest||'"';
 --- Output
-out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_update';SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_update';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Commande
 EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
 EXECUTE 'SELECT string_agg(''''''''||cd_champ||'''''''','', '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRef_guillement;
@@ -1638,7 +1640,7 @@ DECLARE compte integer;
 DECLARE version_taxref integer;
 BEGIN
 --- Output
-out.lib_schema := libSchema;out.typ_log := 'hub_verif';SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema;out.typ_log := 'hub_verif';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Variables
 CASE WHEN jdd = 'data' OR jdd = 'taxa' OR jdd = 'meta' THEN typJdd := Jdd;
 ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'"."temp_metadonnees" WHERE cd_jdd = '''||jdd||'''' INTO typJdd;
@@ -1792,7 +1794,7 @@ DECLARE typChamp varchar;
 DECLARE flag integer;
 BEGIN
 --- Output
-out.lib_schema := libSchema;out.typ_log := 'hub_verif_plus';SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := libSchema;out.typ_log := 'hub_verif_plus';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Variables
 EXECUTE 'SELECT string_agg(cd_champ,''||'') FROM ref.fsd WHERE cd_table = '''||libTable||''' AND unicite = ''Oui'';' INTO champRef;
 
@@ -1935,10 +1937,11 @@ CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log, action varch
 $BODY$ 
 BEGIN
 CASE WHEN action = 'write' THEN
-	EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''');';
-	CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''');'; ELSE PERFORM 1; END CASE;
+	EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''','''||outp.user_log||''');';
+	CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''','''||outp.user_log||''');'; 
+	ELSE PERFORM 1; END CASE;
 WHEN action = 'clear' THEN
-	EXECUTE 'DELETE FROM "'||libSchema||'".zz_log';
+	EXECUTE 'TRUNCATE "'||libSchema||'".zz_log';
 ELSE SELECT 1;
 END CASE;
 END;$BODY$ LANGUAGE plpgsql;
@@ -1952,8 +1955,8 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_log_simple (libSchema varchar, fction varchar, logs varchar) RETURNS void AS 
 $BODY$ 
 BEGIN
-EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||current_date||''');';
-CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||current_date||''');'; ELSE END CASE;
+EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||current_date||''','''||current_user||''');';
+CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||current_date||''','''||current_user||''');'; ELSE END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -1980,7 +1983,7 @@ FOR out_maj IN SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log
 	-- 2. ... on nettoie les données dans le schema agrégation , partie temp 
 	EXECUTE 'SELECT * FROM hub_clear(''agregation'','''||out_maj.col2||''');';
 	-- log
-	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_agg_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||out_maj.col2; PERFORM hub_log ('public', out); RETURN next out;
+	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_agg_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'mise à jour OK : '||out_maj.col2; PERFORM hub_log ('public', out); RETURN next out;
 END LOOP;
 
 END;$BODY$ LANGUAGE plpgsql;
@@ -2130,7 +2133,7 @@ DECLARE out zz_log%rowtype;
 DECLARE listJdd varchar;
 BEGIN
 --- variable
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_publicate';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'jdd à publier';
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_publicate';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'jdd à publier';
 --- commande
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	FOR listJdd IN EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE typ_jdd = '''||jdd||'''' LOOP
@@ -2164,6 +2167,6 @@ $$ language plpgsql;
 --- FIN : Affichage de la réinitialisation
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-INSERT INTO public.zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log) 
-VALUES ('public','-','-','hub_admin_init','Initialisation de hub.sql','1',CURRENT_TIMESTAMP);
+INSERT INTO public.zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) 
+	VALUES ('public','-','-','hub_admin_init','Initialisation de hub.sql','1',CURRENT_TIMESTAMP,current_user);
 SELECT * FROM public.zz_log ORDER BY date_log desc LIMIT 1;
