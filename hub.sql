@@ -34,8 +34,8 @@
 -------------------------------------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
-CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
-CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
+DROP TABLE twocol CASCADE;	CREATE TABLE public.twocol (col1 varchar, col2 varchar);
+DROP TABLE threecol CASCADE;	CREATE TABLE public.threecol (col1 varchar, col2 varchar, col3 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_init
@@ -1626,6 +1626,7 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_verif(libSchema varchar, jdd varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
+DECLARE result twocol%rowtype;
 DECLARE typJdd varchar;
 DECLARE libTable varchar;
 DECLARE libChamp varchar;
@@ -1714,28 +1715,20 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
-FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||'''' LOOP 
-	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' AND typ_jdd = '''||typJdd||'''' LOOP
-		EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
-		CASE WHEN flag = 1 THEN
-			compte := 0;
-			EXECUTE 'SELECT count("'||libChamp||'") FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = code_valeur WHERE code_valeur IS NULL'  INTO compte;
-			CASE WHEN (compte > 0) THEN
-				--- log
-				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Valeur(s) non listée(s) => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''vocactrl'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
-				out.lib_log := typJdd ||' : Valeur(s) non listée(s)';PERFORM hub_log (libSchema, out);
-			ELSE --- rien
-			END CASE;
-		ELSE --- rien
-		END CASE;
-		END LOOP;
+	FOR result IN EXECUTE 'SELECT a.cd_champ, a.cd_table FROM ref.fsd a JOIN ref.voca_ctrl z ON a.cd_champ = z.cd_champ WHERE typ_jdd = '''||typJdd||''' GROUP BY a.cd_champ, a.cd_table;' LOOP
+		compte := 0;
+		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' LEFT JOIN (SELECT code_valeur FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||''') as voca_ctrl ON '||result.col1||' = voca_ctrl.code_valeur WHERE code_valeur IS NULL'  INTO compte;
+		CASE WHEN (compte > 0) THEN
+			--- log
+			out.lib_table := result.col2; out.lib_champ := result.col1; out.lib_log := 'Valeur(s) non listée(s) => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col2||''','''||result.col1||''',''vocactrl'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
+			out.lib_log := typJdd ||' : Valeur(s) non listée(s)';PERFORM hub_log (libSchema, out);
+		ELSE END CASE;
 	END LOOP;
-ELSE --- rien
-END CASE;
+ELSE END CASE;
 
 -- Test concernant les référentiels
 CASE WHEN (typVerif = 'ref' OR typVerif = 'all') THEN
-FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table' LOOP
+FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table;' LOOP
 	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd JOIN ref.aa_meta ON libelle = cd_champ WHERE typ = ''champ_ref'' AND cd_table = '''||libTable||''' GROUP BY cd_champ;' LOOP
 		FOR ref IN EXECUTE 'SELECT one.nom_ref, champ_corresp, condition_ref FROM (SELECT nom_ref, libelle as condition_ref FROM ref.aa_meta a WHERE typ = ''condition_ref'') as one JOIN (SELECT nom_ref, libelle as champ_ref FROM ref.aa_meta a WHERE typ = ''champ_ref'') as two ON one.nom_ref = two.nom_ref JOIN (SELECT nom_ref, libelle as champ_corresp FROM ref.aa_meta a WHERE typ = ''champ_corresp'') as trois ON one.nom_ref = trois.nom_ref WHERE champ_ref = '''||libChamp||'''' LOOP
 			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN ref.'||ref.col1||' z ON a.'||libChamp||' = z.'||ref.col2||' WHERE '||ref.col3||' AND z.'||ref.col2||' IS NULL;' INTO compte;
@@ -1843,7 +1836,7 @@ END CASE;
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
 	EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
 		CASE WHEN flag = 1 THEN
-		FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN ref.voca_ctrl ON "'||libChamp||'" = code_valeur WHERE code_valeur IS NULL'
+		FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN (SELECT code_valeur FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''') as voca_ctrl ON "'||libChamp||'" = voca_ctrl.code_valeur WHERE code_valeur IS NULL'
 		LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out; END LOOP;
 	ELSE ---Rien
 	END CASE;
