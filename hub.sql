@@ -1783,7 +1783,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Vérification des données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_verif_plus(libSchema varchar, libTable varchar, libChamp varchar, typVerif varchar = 'all') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_verif_plus(libSchema varchar, libTable varchar, libChamp varchar, typVerif varchar = 'all', limited integer = 50) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE champRefSelected varchar;
@@ -1798,7 +1798,7 @@ EXECUTE 'SELECT string_agg(cd_champ,''||'') FROM ref.fsd WHERE cd_table = '''||l
 
 --- Test concernant l'obligation
 CASE WHEN (typVerif = 'obligation' OR typVerif = 'all') THEN
-FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" IS NULL'
+FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" IS NULL LIMIT '||limited||';'
 	LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out; END LOOP;
 ELSE --- rien
 END CASE;
@@ -1807,16 +1807,16 @@ END CASE;
 CASE WHEN (typVerif = 'type' OR typVerif = 'all') THEN
 	EXECUTE 'SELECT DISTINCT format FROM ref.fsd WHERE cd_champ = '''||libChamp||'''' INTO typChamp;
 		IF (typChamp = 'int') THEN --- un entier
-			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\d+$''' 
+			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\d+$''  LIMIT '||limited||';' 
 			LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'float') THEN --- un float
-			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\-?\d+\.\d+$'''
+			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^\-?\d+\.\d+$''  LIMIT '||limited||';'
 			LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'date') THEN --- une date
-			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE hub_verif_date('||libChamp||') IS FALSE'
+			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE hub_verif_date('||libChamp||') IS FALSE  LIMIT '||limited||';'
 			LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSIF (typChamp = 'boolean') THEN --- Boolean
-			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^t$'' AND "'||libChamp||'" !~ ''^f$'''
+			FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE "'||libChamp||'" !~ ''^t$'' AND "'||libChamp||'" !~ ''^f$''  LIMIT '||limited||';'
 			LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 		ELSE --- le reste
 			EXECUTE 'SELECT 1';
@@ -1827,7 +1827,7 @@ END CASE;
 --- Test concernant les doublon
 CASE WHEN (typVerif = 'doublon' OR typVerif = 'all') THEN
 	FOR champRefSelected IN EXECUTE 'SELECT '||libChamp||' FROM "'||libSchema||'"."temp_'||libTable||'" GROUP BY '||libChamp||' HAVING COUNT('||libChamp||') > 1'
-		LOOP EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE '||libChamp||' = '''||champRefSelected||''';' INTO champRefSelected;
+		LOOP EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" WHERE '||libChamp||' = '''||champRefSelected||''' LIMIT '||limited||';' INTO champRefSelected;
 		out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out;END LOOP;
 ELSE --- rien
 END CASE;
@@ -1836,7 +1836,7 @@ END CASE;
 CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
 	EXECUTE 'SELECT DISTINCT 1 FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''' ;' INTO flag;
 		CASE WHEN flag = 1 THEN
-		FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN (SELECT code_valeur FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''') as voca_ctrl ON "'||libChamp||'" = voca_ctrl.code_valeur WHERE code_valeur IS NULL'
+		FOR champRefSelected IN EXECUTE 'SELECT '||champRef||' FROM "'||libSchema||'"."temp_'||libTable||'" LEFT JOIN (SELECT code_valeur FROM ref.voca_ctrl WHERE cd_champ = '''||libChamp||''') as voca_ctrl ON "'||libChamp||'" = voca_ctrl.code_valeur WHERE code_valeur IS NULL  LIMIT '||limited||';'
 		LOOP out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_'||libTable||'" WHERE  '||champRef||' = '''||champRefSelected||''''; return next out; END LOOP;
 	ELSE ---Rien
 	END CASE;
@@ -1845,14 +1845,14 @@ END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
-	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date' LOOP 
+	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date  LIMIT '||limited||';' LOOP 
 	out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out; END LOOP;
 ELSE END CASE;
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
 	FOR version_taxref IN 2..9 LOOP
-		FOR champRefSelected IN EXECUTE 'SELECT cd_obs_mere FROM '||libSchema||'.temp_observation a LEFT JOIN ref.taxref_v'||version_taxref||' z ON a.cd_ref = z.cd_nom WHERE z.cd_nom IS NULL AND cd_reftaxo = ''TAXREF'' AND version_reftaxo = '''||version_taxref||'''' LOOP 
+		FOR champRefSelected IN EXECUTE 'SELECT cd_obs_mere FROM '||libSchema||'.temp_observation a LEFT JOIN ref.taxref_v'||version_taxref||' z ON a.cd_ref = z.cd_nom WHERE z.cd_nom IS NULL AND cd_reftaxo = ''TAXREF'' AND version_reftaxo = '''||version_taxref||'''  LIMIT '||limited||';' LOOP 
 		out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; 
 		out.nb_occurence := 'SELECT * FROM "'||libSchema||'"."temp_observation" WHERE cd_obs_mere = '''||champRefSelected||''''; return next out; 
 		END LOOP;
