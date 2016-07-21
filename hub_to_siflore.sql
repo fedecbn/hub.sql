@@ -186,6 +186,8 @@ EXECUTE 'INSERT INTO exploitation.lien_bdtfx_taxref SELECT * FROM dblink(''dbnam
 CREATE TABLE exploitation.stt_lr_reg_catnat(uid integer NOT NULL,cd_ref integer,famille text,nom_sci text,cd_rang text,id_reg integer NOT NULL,statuts text,CONSTRAINT stt_lr_reg_catnat_pkey PRIMARY KEY (uid, id_reg));
 --- Table : exploitation.stt_lr_nat_catnat
 CREATE TABLE exploitation.stt_lr_nat_catnat(uid integer NOT NULL,statuts_nat text,CONSTRAINT stt_lr_nat_catnat_pkey PRIMARY KEY (uid));
+--- Table : exploitation.suivi_maj_data
+CREATE TABLE exploitation.suivi_maj_data(cd_jdd varchar NOT NULL, date_maj timestamp,CONSTRAINT suivi_maj_data_pkey PRIMARY KEY (cd_jdd));
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
@@ -342,7 +344,7 @@ flag = 0;
 dbname = 'outil_evaluation';
 --- commande
 /*Mise à jour de la liste déroulante des taxons*/
-CASE WHEN typ = 'listx' OR typ = 'all' THEN
+CASE WHEN (typ = 'listx' OR typ = 'all') THEN
 --- version Thomas
 TRUNCATE exploitation.taxons; 
 INSERT INTO exploitation.taxons 
@@ -675,6 +677,8 @@ FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
 	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||listJdd||''';';
 	EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||listJdd||''';';
 	EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||listJdd||''';';
+	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||listJdd||''';';
+	EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||listJdd||''',CURRENT_TIMESTAMP);';
 END LOOP;	
 
 SELECT * INTO out FROM siflore_insert(); RETURN next out;
@@ -684,5 +688,3 @@ SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; 
 PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
-
-
