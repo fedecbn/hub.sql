@@ -4,8 +4,7 @@
 -------------------------------------------------------------
 --- 1. Création de la base de données SI FLORE
 -- CREATE DATABASE si_flore_national_2016_07_12 OWNER postgres ENCODING 'UTF-8';
--- !! récupérer les fonction du hub en lançant hub.sql !!
--- !! récupérer les fonction du hub_to_siflore en lançant hub_to_siflore.sql !!
+-- Récupérer les fonction en lançant les script hub.sql ET hub_to_siflore.sql sur cette base de données.
 -- SELECT * FROM siflore_clone();
 
 --- 2. Création d'un hub pour récupérer les données
@@ -31,7 +30,7 @@
 -------------------------------------------------------------
 -------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp);
+CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp,user_log character varying);
 CREATE TABLE IF NOT EXISTS public.threecol (col1 varchar, col2 varchar, col3 varchar);
 CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
 
@@ -218,7 +217,7 @@ CREATE TABLE observation_reunion.observation_maille_utm10(  id_flore_fcbn charac
 CREATE TABLE observation_reunion.observation_commune_reunion(  id_flore_fcbn character varying NOT NULL,  code_insee character varying NOT NULL,  type_localisation_commune character(1) NOT NULL,  type_rattachement_commune character(1) NOT NULL,  remarque_lieu character varying,  referentiel_communal character varying NOT NULL,  departement character(3),  id serial NOT NULL,  CONSTRAINT observation_commune_reunion_pkey PRIMARY KEY (id_flore_fcbn, code_insee),  CONSTRAINT observation_commune_reunion_code_insee_fkey FOREIGN KEY (code_insee)      REFERENCES observation_reunion.communes_bdtopo_reunion (code_insee) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_id_flore_fcbn_fkey FOREIGN KEY (id_flore_fcbn)      REFERENCES observation_reunion.observation_taxon_reunion (id_flore_fcbn) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_type_localisation_commune_fkey FOREIGN KEY (type_localisation_commune)      REFERENCES observation.type_localisation (type_localisation) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_type_rattachement_commune_fkey FOREIGN KEY (type_rattachement_commune)      REFERENCES observation.type_rattachement (type_rattachement) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION);
 
 --- Log
-out.lib_log := 'Siflore créé';out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('public', out);RETURN NEXT out;
+out.lib_log := 'Siflore créé';out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -258,7 +257,7 @@ WHEN opt = 'drop' THEN
 ELSE out.lib_log := 'Paramètre incorrecte';
 END CASE;
 --- Log
-out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_right';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('hub', out);RETURN NEXT out;
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_right';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('hub', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -323,7 +322,7 @@ SELECT * FROM siflore_right();
 
 --- Log
 CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jours'; ELSE out.lib_log := 'référentiel mis à jour : '||typ; END CASE;
-out.lib_schema := '-';out.lib_table := 'exploitation.taxref_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; PERFORM hub_log ('hub', out);RETURN NEXT out;PERFORM hub_log ('hub', out);
+out.lib_schema := '-';out.lib_table := 'exploitation.taxref_new';out.lib_champ := '-';out.typ_log := 'siflore_taxref_refresh';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.user_log := current_user;PERFORM hub_log ('hub', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------
@@ -492,7 +491,7 @@ ELSE END CASE;
 
 --- Log
 CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jour'; ELSE out.lib_log := 'synthèses mis à jour : '||typ; END CASE;
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;PERFORM hub_log ('hub', out); RETURN next out;PERFORM hub_log ('hub', out);
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_synthese';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -512,7 +511,7 @@ DECLARE cmd varchar;
 DECLARE ct integer;
 BEGIN 
 --- log
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert';SELECT CURRENT_TIMESTAMP INTO out.date_log;
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Les communes
 SELECT count(*) INTO ct FROM hub.observation as obs 
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
@@ -686,6 +685,6 @@ SELECT * INTO out FROM siflore_insert(); RETURN next out;
 SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
 
 -- log
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.lib_log = 'mise à jour OK : '||libSchema; 
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'mise à jour OK : '||libSchema; 
 PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
