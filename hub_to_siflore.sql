@@ -5,6 +5,7 @@
 --- 1. Création de la base de données SI FLORE
 -- CREATE DATABASE si_flore_national_2016_07_12 OWNER postgres ENCODING 'UTF-8';
 -- !! récupérer les fonction du hub en lançant hub.sql !!
+-- !! récupérer les fonction du hub_to_siflore en lançant hub_to_siflore.sql !!
 -- SELECT * FROM siflore_clone();
 
 --- 2. Création d'un hub pour récupérer les données
