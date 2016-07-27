@@ -11,7 +11,7 @@
 -- SELECT * FROM hub_simple_connect_ref('all');
 -- SELECT * FROM hub_admin_clone('hub');
 
---- 3. Création/mise à jour des référentiels utilisés
+--- 3. Création/mise à jour des référentiels utilisés (table taxref_new )
 -- SELECT * FROM siflore_ref_refresh();
 
 --- 4. Ajout/mise à jour des utilisateurs 
@@ -21,10 +21,9 @@
 -------------------------------------------------------------
 --- Pas à pas pour la mise à jour des données dans le SI FLORE ---
 -------------------------------------------------------------
---- Mise à jour des données (HUB SIFLORE => exploitation)
+--- 1. Mise à jour des données (HUB SIFLORE => exploitation)
 -- SELECT * FROM siflore_data_refresh('cor');
----  Mise à jour des référentiels et synthèses SI FLORE (menus déroulants, synthèses communes...)
--- SELECT * FROM siflore_ref_refresh();
+--- 2. Mise à jour des tables "dynamiques" utilisées dans l'application SI FLORE (menus déroulants, onglets de synthèse en bas de page...)
 -- SELECT * FROM siflore_synthese_refresh();
 
 -------------------------------------------------------------
@@ -162,12 +161,12 @@ DROP INDEX IF EXISTS exploitation.cd_taxsup4_5_idk;CREATE INDEX cd_taxsup4_5_idk
 DROP INDEX IF EXISTS exploitation.cd_taxsup_5_idk;CREATE INDEX cd_taxsup_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup);
 EXECUTE 'INSERT INTO exploitation.taxref_v5_new SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.taxref_v5_new;'') as t1(cd_ref integer,  nom_complet character varying,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean,  bryophyta boolean,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer)';
 -- Table: exploitation.taxref
-CREATE TABLE exploitation.taxref (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_pkey PRIMARY KEY (cd_ref, nom_complet));
-DROP INDEX IF EXISTS cd_ref_idk;CREATE INDEX cd_ref_idk  ON exploitation.taxref  USING btree (cd_ref);
-DROP INDEX IF EXISTS cd_taxsup2_idk;CREATE INDEX cd_taxsup2_idk ON exploitation.taxref USING btree (cd_taxsup2);
-DROP INDEX IF EXISTS cd_taxsup3_idk;CREATE INDEX cd_taxsup3_idk ON exploitation.taxref USING btree (cd_taxsup3);
-DROP INDEX IF EXISTS cd_taxsup4_idk;CREATE INDEX cd_taxsup4_idk ON exploitation.taxref USING btree (cd_taxsup4);
-DROP INDEX IF EXISTS cd_taxsup_idk ;CREATE INDEX cd_taxsup_idk  ON exploitation.taxref USING btree (cd_taxsup);
+CREATE TABLE exploitation.taxref_new (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_new_pkey PRIMARY KEY (cd_ref, nom_complet));
+DROP INDEX IF EXISTS cd_ref_idk;CREATE INDEX cd_ref_idk  ON exploitation.taxref_new  USING btree (cd_ref);
+DROP INDEX IF EXISTS cd_taxsup2_idk;CREATE INDEX cd_taxsup2_idk ON exploitation.taxref_new USING btree (cd_taxsup2);
+DROP INDEX IF EXISTS cd_taxsup3_idk;CREATE INDEX cd_taxsup3_idk ON exploitation.taxref_new USING btree (cd_taxsup3);
+DROP INDEX IF EXISTS cd_taxsup4_idk;CREATE INDEX cd_taxsup4_idk ON exploitation.taxref_new USING btree (cd_taxsup4);
+DROP INDEX IF EXISTS cd_taxsup_idk ;CREATE INDEX cd_taxsup_idk  ON exploitation.taxref_new USING btree (cd_taxsup);
 -- Table: exploitation.taxons
 CREATE TABLE exploitation.taxons(cd_ref integer NOT NULL, nom_complet text NOT NULL,  rang character varying,  type character varying,  CONSTRAINT taxons_new_pkey PRIMARY KEY (cd_ref, nom_complet));
 -- Table: exploitation.taxons_communs
@@ -309,16 +308,6 @@ TRUNCATE exploitation.taxons_communs;
 INSERT INTO exploitation.taxons_communs SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons_communs') as t1(cd_ref integer , nom_complet character varying,  taxons_communs_ss_inf character varying, taxons_communs_av_inf character varying);
 */
 
-/*Mise à jour du lien avec telabotanica*/
-CASE WHEN typ = 'tela' OR typ = 'all' THEN
-TRUNCATE exploitation.information_taxons;
-INSERT INTO exploitation.information_taxons SELECT t.cd_ref, t.nom_complet,'<a href="http://www.tela-botanica.org/bdtfx-nn-'||l.num_nom|| '-synthese" target="_blank"> Lien Tela Botanica </a> <br /> <a href="http://inpn.mnhn.fr/espece/cd_nom/'||t.cd_ref||'" target="_blank"> Lien INPN </a> ' as url, l.num_nom as num_nom_tela, l.num_nom_retenu as num_nom_retenu_tela, l.nom_sci, l.cd_nom
-FROM exploitation.taxref_new t inner join exploitation.lien_bdtfx_taxref l on (t.cd_ref=l.cd_nom);
-flag = 1;
-ELSE END CASE;
-
-/*droits sur les référentiels*/
-SELECT * FROM siflore_right();
 
 --- Log
 CASE WHEN flag = 0 THEN out.lib_log := 'Pas de mise à jours'; ELSE out.lib_log := 'référentiel mis à jour : '||typ; END CASE;
@@ -376,6 +365,7 @@ SELECT e.cd_ref, e.nom_complet, e.cd_taxsup, e.rang, e.liste_bryo,e.bryophyta   
 ) SELECT cd_ref, nom_complet, rang, liste_bryo, bryophyta FROM hierarchie order by nom_complet) all_tax order by nom_complet;
 */
 
+/*Mise à jour des tables de synthese utilisées par les onglets "Synthèse par taxon" en bas de l'application*/
 -- Remplir la table synthese_taxon_comm contenant la synthese pour les taxons liées aux communes
 CASE WHEN typ = 'com' OR typ = 'all' THEN
 TRUNCATE exploitation.synthese_taxon_comm;
@@ -424,7 +414,16 @@ GROUP BY obs.cd_ref, obs.nom_complet;
 flag = 1;
 ELSE END CASE;
     
+/*Mise à jour de la table qui alimente l'onglet "liens externes" (lien avec telabotanica et INPN) */
+CASE WHEN typ = 'tela' OR typ = 'all' THEN
+TRUNCATE exploitation.information_taxons;
+INSERT INTO exploitation.information_taxons SELECT t.cd_ref, t.nom_complet,'<a href="http://www.tela-botanica.org/bdtfx-nn-'||l.num_nom|| '-synthese" target="_blank"> Lien Tela Botanica </a> <br /> <a href="http://inpn.mnhn.fr/espece/cd_nom/'||t.cd_ref||'" target="_blank"> Lien INPN </a> ' as url, l.num_nom as num_nom_tela, l.num_nom_retenu as num_nom_retenu_tela, l.nom_sci, l.cd_nom
+FROM exploitation.taxref_new t inner join exploitation.lien_bdtfx_taxref l on (t.cd_ref=l.cd_nom);
+flag = 1;
+ELSE END CASE;
 
+
+/*Mise à jour de la table qui alimente l'onglet "Statuts listes rouges" (à partir de l'outil d'évaluation Codex/rubrique catanat) */
 -- peuplement: stt_lr_reg_catnat
 CASE WHEN typ = 'lr_reg' OR typ = 'all' THEN
 TRUNCATE exploitation.stt_lr_reg_catnat;
