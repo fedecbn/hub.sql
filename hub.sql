@@ -32,6 +32,8 @@
 --- Fonction Admin 
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
+--si zz_log a déjà été créé et qu'un message d'erreur apparait à propos de la variable out.user_log, lancer la requête suivante:
+--ALTER TABLE public.zz_log add column user_log varchar;
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp,user_log varchar);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
 DROP TABLE IF EXISTS twocol CASCADE;	CREATE TABLE public.twocol (col1 varchar, col2 varchar);
