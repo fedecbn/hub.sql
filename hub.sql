@@ -796,13 +796,14 @@ END; $BODY$ LANGUAGE plpgsql;
 --- Description :  Copie du Hub vers un serveur distant
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, jdd varchar, libSchema_from varchar, libSchema_to varchar) RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_connect(hote varchar, port varchar,dbname varchar,utilisateur varchar,mdp varchar, jdd varchar, libSchema_from varchar, libSchema_to varchar, limite integer = 0) RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
 DECLARE libTable varchar;
 DECLARE list_champ varchar;
 DECLARE listJdd varchar;
+DECLARE la_limite varchar;
 DECLARE typJdd varchar;
 DECLARE isvid varchar;
 DECLARE connecte_list varchar[];
@@ -812,6 +813,7 @@ BEGIN
 --- Variables
 connction = 'hostaddr='||hote||' port='||port||' dbname='||dbname||' user='||utilisateur||' password='||mdp||'';
 out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+CASE WHEN limite = 0 THEN la_limite = ''; ELSE la_limite = ' LIMIT '||limite; END CASE;
 
 --- Vérification qu'aucune connexion n'est déjà ouverte.
 SELECT dblink_get_connections() INTO connecte_list;
@@ -840,7 +842,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJd
 	LOOP
 	EXECUTE 'SELECT * FROM dblink_connect_u(''link'','''||connction||''');';
 	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE (typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'') AND cd_table = '''||libTable||''' ORDER BY ordre_champ) as one;' INTO list_champ;
-	EXECUTE 'SELECT * from dblink_send_query(''link'',''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||')'');';
+	EXECUTE 'SELECT * from dblink_send_query(''link'',''SELECT * FROM '||libSchema_from||'.'||libTable||' WHERE cd_jdd IN ('||listJdd||') '||la_limite||' '');';
 	EXECUTE 'INSERT INTO '||libSchema_to||'.temp_'||libTable||' SELECT * FROM dblink_get_result(''link'') as t1 ('||list_champ||');';
 	PERFORM dblink_disconnect('link');
 END LOOP;
