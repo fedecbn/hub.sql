@@ -655,22 +655,22 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_data_drop(libSchema varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_data_drop(jdd varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN 
 --- Variable
 
 --- Commande
-EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||libSchema||''';';
-EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||libSchema||''';';
-EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||libSchema||''';';
-EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||libSchema||''';';
-EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||libSchema||''';';
+EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||jdd||''';';
+EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||jdd||''';';
+EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||jdd||''';';
+EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
+EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
 	
 -- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
-out.lib_log = 'Jdd supprimé : '||libSchema; 
+out.lib_log = 'Jdd supprimé : '||jdd; 
 PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
