@@ -650,6 +650,33 @@ END; $BODY$ LANGUAGE plpgsql;
 -------------------------------------------------------------
 -------------------------------------------------------------
 --------------------------------
+--- Fonction siflore_data_drop
+--- Description : Supprime un jeu de données
+--------------------------------
+-------------------------------------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_data_drop(libSchema varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+BEGIN 
+--- Variable
+
+--- Commande
+EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||libSchema||''';';
+EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||libSchema||''';';
+EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||libSchema||''';';
+EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||libSchema||''';';
+EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||libSchema||''';';
+	
+-- log
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+out.lib_log = 'Jdd supprimé : '||libSchema; 
+PERFORM hub_log ('hub', out); RETURN next out;
+END; $BODY$ LANGUAGE plpgsql;
+
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
 --- Fonction siflore_data_refresh
 --- Description : Met à jour les données SI FLORE
 --------------------------------
@@ -673,11 +700,7 @@ UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' 
 
 -- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE (suppression + ajout)
 FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
-	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||listJdd||''';';
-	EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||listJdd||''';';
-	EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||listJdd||''';';
-	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||listJdd||''';';
-	EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||listJdd||''',CURRENT_TIMESTAMP);';
+	EXECUTE 'SELECT * FROM siflore_data_drop('''||listJdd||''')' INTO out;RETURN next out;
 END LOOP;	
 
 SELECT * INTO out FROM siflore_insert(); RETURN next out;
