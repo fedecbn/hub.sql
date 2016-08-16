@@ -682,7 +682,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_data_refresh(libSchema varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_data_refresh(libSchema varchar, jdd varchar = 'data') RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
@@ -693,15 +693,19 @@ BEGIN
 connction = 'dbname=si_flore_national port=5433';
 --- Commande
 -- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
-EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', ''data'', '''||libSchema||''', ''hub'');' into out; RETURN next out;
+EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', '''||jdd||''', '''||libSchema||''', ''hub'');' into out; RETURN next out;
 /*problèmes code maille*/
 UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
 UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' AND cd_geo NOT LIKE '5kmL93%';
 
 -- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE (suppression + ajout)
-FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
-	EXECUTE 'SELECT * FROM siflore_data_drop('''||listJdd||''')' INTO out;RETURN next out;
-END LOOP;	
+CASE WHEN jdd = 'data' THEN
+	FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
+		EXECUTE 'SELECT * FROM siflore_data_drop('''||listJdd||''')' INTO out;RETURN next out;
+	END LOOP;	
+ELSE 
+	EXECUTE 'SELECT * FROM siflore_data_drop('''||jdd||''')' INTO out;RETURN next out;
+END CASE;
 
 SELECT * INTO out FROM siflore_insert(); RETURN next out;
 SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
