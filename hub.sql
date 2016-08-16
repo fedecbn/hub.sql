@@ -2135,16 +2135,25 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_publicate (libSchema varchar, jdd varchar) RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
-DECLARE listJdd varchar;
+DECLARE verifJdd varchar;
 BEGIN
 --- variable
-out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_publicate';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'jdd à publier';
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_publicate';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'jdd à publier';
 --- commande
 CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
-	FOR listJdd IN EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE typ_jdd = '''||jdd||'''' LOOP
-		out.nb_occurence := listJdd;PERFORM hub_log (libSchema, out); RETURN next out;
-	END LOOP;
-ELSE out.nb_occurence := jdd; PERFORM hub_log (libSchema, out); RETURN next out;
+	EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE typ_jdd = '''||jdd||''' LIMIT 1' INTO verifJdd;
+	CASE WHEN verifJdd IS NOT NULL THEN
+		out.nb_occurence := jdd;PERFORM hub_log (libSchema, out); RETURN next out;
+	ELSE
+		out.lib_log = 'Pas de jdd '||jdd;out.nb_occurence := '-';PERFORM hub_log (libSchema, out); RETURN next out;
+	END CASE;
+ELSE 
+	EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE cd_jdd = '''||jdd||'''' INTO verifJdd;
+	CASE WHEN verifJdd IS NOT NULL THEN 
+		out.nb_occurence := jdd; PERFORM hub_log (libSchema, out); RETURN next out;
+	ELSE
+		out.lib_log = 'Ce jdd est absent de la base : '||jdd;out.nb_occurence := '-';PERFORM hub_log (libSchema, out); RETURN next out;
+	END CASE;
 END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
