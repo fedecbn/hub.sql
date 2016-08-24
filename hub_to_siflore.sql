@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS public.twocol (col1 varchar, col2 varchar);
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : siflore_admin_init
---- Description : initialise les fonction du hub (supprime toutes les fonctions) et  initialise certaines tables (zz_log et bilan)
+--- Description : initialise les fonctions hub_to_siflore (supprime toutes les fonctions) et  initialise certaines tables (zz_log et bilan)
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION siflore_admin_init() RETURNS void  AS 
@@ -224,7 +224,7 @@ END; $BODY$ LANGUAGE plpgsql;
 -------------------------------------------------------------
 --------------------------------
 --- Fonction : siflore_right
---- Description : Met à jour taxref en fonction de la version souhaité - aujourd'hui ajout de taxref_v7_new
+--- Description : Gestion des droits d'accès pour le SI FLORE
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
@@ -318,7 +318,7 @@ END; $BODY$ LANGUAGE plpgsql;
 -------------------------------------------------------------
 --------------------------------
 --- Fonction siflore_synthese_refresh
---- Description : Mise à jour des synthèses
+--- Description : Mise à jour des synthèses du SI FLORE
 --------------------------------
 -------------------------------------------------------------
 CREATE OR REPLACE FUNCTION siflore_synthese_refresh(typ varchar = 'all') RETURNS setof zz_log AS 
@@ -508,6 +508,8 @@ DECLARE out zz_log%rowtype;
 DECLARE jdd threecol%rowtype;
 DECLARE cmd varchar;
 DECLARE ct integer;
+DECLARE list_jdd varchar;
+DECLARE test_jdd integer;
 BEGIN 
 --- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
@@ -644,6 +646,16 @@ INSERT INTO exploitation.obs_maille_fr5
 ELSE 	out.lib_log := 'Aucune Maille5 transférée';	out.nb_occurence := '0'; 			RETURN next out;PERFORM hub_log ('hub', out);
 END CASE;
 
+--- Suivi des mises à jour
+FOR list_jdd IN SELECT cd_jdd FROM hub.metadonnees GROUP BY cd_jdd LOOP
+	EXECUTE 'SELECT 1 FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||list_jdd||'''' INTO test_jdd;
+	CASE WHEN test_jdd = 1 THEN
+		EXECUTE 'UPDATE exploitation.suivi_maj_data  SET date_maj = current_date WHERE cd_jdd = '''||list_jdd||''' ';
+	ELSE
+		EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||list_jdd||''',current_time)';
+	END CASE;
+END LOOP;
+
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -665,7 +677,6 @@ BEGIN
 EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||jdd||''';';
 EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||jdd||''';';
 EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||jdd||''';';
-EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
 EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
 	
 -- log
@@ -693,6 +704,7 @@ BEGIN
 connction = 'dbname=si_flore_national port=5433';
 --- Commande
 -- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
+SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
 EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', '''||jdd||''', '''||libSchema||''', ''hub'');' into out; RETURN next out;
 /*problèmes code maille*/
 UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
@@ -708,7 +720,7 @@ ELSE
 END CASE;
 
 SELECT * INTO out FROM siflore_insert(); RETURN next out;
-SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
+
 
 -- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'mise à jour OK : '||libSchema; 
