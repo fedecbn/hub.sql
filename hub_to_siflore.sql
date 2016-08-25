@@ -513,6 +513,7 @@ DECLARE test_jdd integer;
 BEGIN 
 --- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+
 --- Les communes
 SELECT count(*) INTO ct FROM hub.observation as obs 
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
@@ -647,6 +648,28 @@ ELSE 	out.lib_log := 'Aucune Maille5 transférée';	out.nb_occurence := '0'; 			
 END CASE;
 
 --- Suivi des mises à jour
+PERFORM siflore_data_log();
+
+END; $BODY$ LANGUAGE plpgsql;
+
+
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
+--- Fonction siflore_data_log
+--- Description : Enregistre la date de mise à jour des données
+--------------------------------
+-------------------------------------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_data_log() RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE list_jdd varchar;
+DECLARE test_jdd integer;
+BEGIN 
+--- Variable
+
+--- Commande
 FOR list_jdd IN SELECT cd_jdd FROM hub.metadonnees GROUP BY cd_jdd LOOP
 	EXECUTE 'SELECT 1 FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||list_jdd||'''' INTO test_jdd;
 	CASE WHEN test_jdd = 1 THEN
@@ -655,7 +678,10 @@ FOR list_jdd IN SELECT cd_jdd FROM hub.metadonnees GROUP BY cd_jdd LOOP
 		EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||list_jdd||''',current_time)';
 	END CASE;
 END LOOP;
-
+-- log
+out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_log';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+out.lib_log = 'Date enregistrée'; 
+PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
 
@@ -667,18 +693,24 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_data_drop(jdd varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_data_drop(libSchema varchar,jdd varchar) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 BEGIN 
 --- Variable
 
 --- Commande
-EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||jdd||''';';
-EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||jdd||''';';
-EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||jdd||''';';
-EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
-	
+CASE WHEN libSchema = 'mas' THEN
+	EXECUTE 'DELETE FROM observation_reunion.observation_commune_reunion WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM observation_reunion.observation_maille_utm1 WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM observation_reunion.observation_maille_utm10 WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
+ELSE
+	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM exploitation.obs_maille_fr5 WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
+END CASE;
 -- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 out.lib_log = 'Jdd supprimé : '||jdd; 
@@ -713,10 +745,10 @@ UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' 
 -- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE (suppression + ajout)
 CASE WHEN jdd = 'data' THEN
 	FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
-		EXECUTE 'SELECT * FROM siflore_data_drop('''||listJdd||''')' INTO out;RETURN next out;
+		EXECUTE 'SELECT * FROM siflore_data_drop('''||libSchema||''','''||listJdd||''')' INTO out;RETURN next out;
 	END LOOP;	
 ELSE 
-	EXECUTE 'SELECT * FROM siflore_data_drop('''||jdd||''')' INTO out;RETURN next out;
+	EXECUTE 'SELECT * FROM siflore_data_drop('''||libSchema||''','''||jdd||''')' INTO out;RETURN next out;
 END CASE;
 
 SELECT * INTO out FROM siflore_insert(); RETURN next out;
