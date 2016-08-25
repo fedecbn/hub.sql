@@ -533,6 +533,7 @@ WHEN typ = 'check' THEN
 		CASE WHEN result.col3 = 'integer' THEN EXECUTE 'SELECT ''(''||string_agg(code_valeur,'','')||'')'' FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
 			ELSE EXECUTE  'SELECT replace(''(''''''||string_agg(code_valeur,'','')||'''''')'','','','''''','''''') FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
 		END CASE;
+		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' DROP CONSTRAINT IF EXISTS '||result.col1||'_check;';
 		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
 	END LOOP;
 	out.lib_log := 'Refresh CHECK OK';
