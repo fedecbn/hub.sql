@@ -10,13 +10,15 @@
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 --- 1. Lancer le fichier hub.sql
---- la fonction hub_admin_init sera lancé automatiquement.
+--- La fonction hub_admin_init sera lancée automatiquement.
 
---- 2. Installer le hub	(cette fonction lance les fonctions hub_admin_clone et hub_admin_ref)							
---- SELECT * FROM hub_admin_install('hub');	
+--- 2. Installer le hub							
+--- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'aa_meta')
+--- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'all')
+--- SELECT * FROM hub_clone('hub')
 
 --- 3. Importer une jeu de données (ex :  TAXA)
---- SELECT * FROM hub_import('hub','taxa','D:/Temp/import/');
+--- SELECT * FROM hub_import('hub','taxa',[path]);
 
 --- 4. Vérifier le jeu de données (ex : TAXA)
 --- SELECT * FROM hub_verif('hub','taxa');
@@ -25,7 +27,7 @@
 --- SELECT * FROM hub_push('hub','taxa');
 
 --- 6. Envoyer les données sur le hub national (ex : TAXA)
---- SELECT * FROM hub_connect([adresse_ip], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
+--- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
 
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
@@ -39,6 +41,7 @@ CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
 DROP TABLE IF EXISTS twocol CASCADE;	CREATE TABLE public.twocol (col1 varchar, col2 varchar);
 DROP TABLE IF EXISTS threecol CASCADE;	CREATE TABLE public.threecol (col1 varchar, col2 varchar, col3 varchar);
+
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_init
