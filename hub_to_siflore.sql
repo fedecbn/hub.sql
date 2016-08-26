@@ -865,7 +865,7 @@ FOR list_jdd IN SELECT cd_jdd FROM hub.metadonnees GROUP BY cd_jdd LOOP
 	CASE WHEN test_jdd = 1 THEN
 		EXECUTE 'UPDATE exploitation.suivi_maj_data  SET date_maj = current_date WHERE cd_jdd = '''||list_jdd||''' ';
 	ELSE
-		EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||list_jdd||''',current_time)';
+		EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||list_jdd||''',now())';
 	END CASE;
 END LOOP;
 -- log
