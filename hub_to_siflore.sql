@@ -719,7 +719,7 @@ END CASE;
 --- Les communes
 SELECT count(*) INTO ct FROM observation_reunion.observation_commune_reunion
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	WHERE typ_geo = 'utm10'
+	WHERE typ_geo = 'com'
 	AND cd_validite = 1;
 -- intégration	
 CASE WHEN ct <> 0 THEN
@@ -727,9 +727,9 @@ INSERT INTO observation_reunion.observation_maille_utm10 (id_flore_fcbn, code_in
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as code_insee, confiance_geo as type_localisation_commune, moyen_geo as type_rattachement_commune, ter.rmq as remarque_lieu, cd_refgeo as referentiel_communal, null as departement
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	WHERE typ_geo = 'utm10'
+	WHERE typ_geo = 'com'
 	AND cd_validite = 1;
-	out.lib_log := 'Maille10 transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
+	out.lib_log := 'communes transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
 ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
 END CASE;
 
