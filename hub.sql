@@ -1122,7 +1122,7 @@ WHEN format = 'sinp' THEN
 		cd_refgeo 		as "nomRef",
 		origine_geo 		as "typeInfoGeo"
 		FROM '||libSchema||'.releve_territoire a
-		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jj = z.cd_jdd
+		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jdd = z.cd_jdd
 		WHERE typ_geo = ''m10''
 	) TO '''||path||'Maille10x10.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 
@@ -1134,7 +1134,7 @@ WHEN format = 'sinp' THEN
 		cd_refgeo 		as "nomRef",
 		origine_geo 		as "typeInfoGeo"
 		FROM '||libSchema||'.releve_territoire a
-		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jj = z.cd_jdd
+		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jdd = z.cd_jdd
 		WHERE typ_geo = ''com''
 	) TO '''||path||'Commune.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	
