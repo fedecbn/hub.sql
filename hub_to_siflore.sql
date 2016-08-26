@@ -673,6 +673,16 @@ BEGIN
 --- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert_reunion';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
+--- Le jeu de données
+SELECT count(*)  INTO ct FROM hub.metadonnees meta;
+CASE WHEN ct <> 0 THEN
+INSERT INTO observation.bd_mere
+	SELECT cd_jdd as "bd_mere", lib__jdd as "libelle_court_bd_mere"
+	FROM hub.metadonnees;
+ELSE out.lib_log := 'Aucun jdd dans la table metadonnees';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
+END CASE;
+
+
 --- les observations 	
 SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
@@ -688,7 +698,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 -- intégration
 CASE WHEN ct <> 0 THEN
 INSERT INTO observation_reunion.observation_taxon_reunion
-	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as code_taxon,nom_ent_ref as nom_taxon,cd_ent_mere::integer as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel,obs.rmq as remarque_taxon,stp.libelle_valeur as statut_pop,lib_jdd as bd_mere,2 as usage_donnee,cd_jdd_orig as bd_source,lib_jdd_orig as libelle_court_bd_source,
+	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as code_taxon,nom_ent_ref as nom_taxon,cd_ent_mere::integer as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel,obs.rmq as remarque_taxon,stp.libelle_valeur as statut_pop,cd_jdd as bd_mere,2 as usage_donnee,cd_jdd_orig as bd_source,lib_jdd_orig as libelle_court_bd_source,
 	cd_obs_orig as id_flore_source,null as sup_donnee,null as remarque_donnee_mere,nature_date as nature_date,rel.rmq as remarque_date,null as syst_ref_spatial,null as nature_objet_geo,ter.rmq as remarque_lieu,typ_source as type_source,null as type_doc,cd_biblio::integer as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,
 	null as code_index_herbariorum,null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,null as id_objet_geo,date_publication as date_transmission,cd_ent_mere as id_flore_mere,meta.cd_jdd as cd_jdd
 	FROM hub.observation as obs
@@ -705,139 +715,58 @@ INSERT INTO observation_reunion.observation_taxon_reunion
 ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
 END CASE;
 
+/*
 --- Les communes
-SELECT count(*) INTO ct FROM hub.observation as obs 
-	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
+SELECT count(*) INTO ct FROM observation_reunion.observation_commune_reunion
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
-	JOIN ref.geo_commune_reunion com ON ter.cd_geo = com.code_insee
-	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
-	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
-	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
-	WHERE typ_geo = 'com'
-	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
+	WHERE typ_geo = 'utm10'
 	AND cd_validite = 1;
--- intégration
+-- intégration	
 CASE WHEN ct <> 0 THEN
-	INSERT INTO observation_reunion.obs_commune_reunion
-	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
-	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,tso.libelle_valeur as libelle_type_source,	null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,	null as auteur_doc,null as ref_doc,null as code_herbarium,null as code_index_herbariorum,null as nom_herbarium,	cd_herbier as code_herbier,
-	lib_herbier as nom_herbier,null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,	date_fin::date as date_fin_obs,	null as date_transmission,cd_ent_mere as id_flore_mere,	cfg.libelle_valeur, mog.libelle_valeur,cd_geo, lib_geo, com.geom,statut_pop,null as nom_observateur,	null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur,meta.cd_jdd as cd_jdd
+INSERT INTO observation_reunion.observation_maille_utm10 (id_flore_fcbn, code_insee, type_localisation_commune, type_rattachement_commune, remarque_lieu, referentiel_communal, departement)
+	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as code_insee, confiance_geo as type_localisation_commune, moyen_geo as type_rattachement_commune, ter.rmq as remarque_lieu, cd_refgeo as referentiel_communal, null as departement
 	FROM hub.observation as obs
-	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
-	JOIN ref.geo_commune_reunion com ON ter.cd_geo = com.code_insee
-	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
-	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
-	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
-	WHERE typ_geo = 'com'
-	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
+	WHERE typ_geo = 'utm10'
 	AND cd_validite = 1;
---- les acteurs des communes
-	UPDATE observation_reunion.obs_commune_reunion input SET libelle_organisme = nom_acteur, observateur = lib_orgm
-	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
-	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
-	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
-	out.lib_log := 'Communes transférées';out.nb_occurence := ct||' occurence(s)';PERFORM hub_log ('hub', out); RETURN next out;
+	out.lib_log := 'Maille10 transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
 ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
 END CASE;
 
 --- Les maille10
-SELECT count(*) INTO ct FROM hub.observation as obs
-	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
+SELECT count(*) INTO ct FROM observation_reunion.observation_maille_utm10(id_flore_fcbn, cd_sig, type_localisation_maille_utm10, type_rattachement_maille_utml0,remarque_lieu)
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
-	JOIN ref.geo_maille10_zee_974 m10 ON ter.cd_geo = m10.cd_sig
-	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
-	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
-	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'utm10'
-	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
--- intégration
+-- intégration	
 CASE WHEN ct <> 0 THEN
 INSERT INTO observation_reunion.observation_maille_utm10
-	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
-	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop,lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date, ter.rmq as remarque_lieu,
-	tso.libelle_valeur as libelle_type_source,null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,	null as code_index_herbariorum,	null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,null as part_herbier,null as id_part,
-	null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,	null as date_transmission,	cd_ent_mere as id_flore_mere,cd_geo, cfg.libelle_valeur, mog.libelle_valeur,m10.geom, statut_pop,null as nom_observateur,null as prenom_observateur,'à mettre à jour' as libelle_organisme,'à mettre à jour' as observateur,meta.cd_jdd as cd_jdd
+	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as nom_maille, confiance_geo as type_localisation_maille_utm10, moyen_geo as type_rattachement_maille_utml0, ter.rmq as remarque_lieu
 	FROM hub.observation as obs
-	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
-	JOIN ref.geo_maille10_zee_974 m10 ON ter.cd_geo = m10.cd_sig
-	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
-	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
-	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'utm10'
-	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
---- les acteurs des mailles 10
-	UPDATE observation_reunion.observation_maille_utm10 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
-	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
-	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
-	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
 	out.lib_log := 'Maille10 transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
 ELSE out.lib_log := 'aucune Maille10 transférée';out.nb_occurence := '0'; RETURN next out;PERFORM hub_log ('hub', out);
 END CASE;
 
 --- Les maille utm1
-SELECT count(*) INTO ct FROM hub.observation as obs
-	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
+SELECT count(*) INTO ct FROM observation_reunion.observation_maille_utm1(id_flore_fcbn, nom_maille, type_localisation_maille_utm1, type_rattachement_maille_utml,remarque_lieu)
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
-	JOIN ref.geo_maille1_utm1 m5 ON ter.cd_geo = m5.nom_maille
-	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
-	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
-	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'utm1'
-	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 -- intégration	
 CASE WHEN ct <> 0 THEN
 INSERT INTO observation_reunion.observation_maille_utm1
-	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as code_taxon,nom_ent_ref as nom_taxon,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel,obs.rmq as remarque_taxon,stp.libelle_valeur as statut_pop,lib_jdd as bd_mere,prp.libelle_valeur as usage_donnee,cd_jdd_orig as bd_source,lib_jdd_orig as libelle_court_bd_source,
-	cd_obs_orig as id_flore_source,null as sup_donnee,null as remarque_donnee_mere,ntd.libelle_valeur as libelle_nature_date,rel.rmq as remarque_date,null as syst_ref_spatial,null as nature_objet_geo,ter.rmq as remarque_lieu,tso.libelle_valeur as libelle_type_source,null as type_doc,cd_biblio as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,
-	null as code_index_herbariorum,null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,cd_geo as id_objet_geo,null as date_transmission,cd_ent_mere as id_flore_mere,meta.cd_jdd as cd_jdd
+	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as nom_maille, confiance_geo as type_localisation_maille_utm1, 	moyen_geo as type_rattachement_maille_utml, ter.rmq as remarque_lieu
 	FROM hub.observation as obs
-	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
-	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
-	JOIN ref.geo_maille1_utm1 m5 ON ter.cd_geo = m5.nom_maille
-	JOIN ref.voca_ctrl stp ON stp.cd_champ = 'statut_pop' AND stp.code_valeur = statut_pop::varchar
-	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl ntd ON ntd.cd_champ = 'nature_date' AND ntd.code_valeur = nature_date
-	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE typ_geo = 'utm1'
-	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
---- les acteurs des mailles 5
-	UPDATE observation_reunion.observation_maille_utm1 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
-	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
-	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
-	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
 	out.lib_log := 'Maille1 transférées';		out.nb_occurence := ct||' occurence(s)'; 	RETURN next out;PERFORM hub_log ('hub', out);
 ELSE 	out.lib_log := 'Aucune Maille1 transférée';	out.nb_occurence := '0'; 			RETURN next out;PERFORM hub_log ('hub', out);
 END CASE;
-
+*/
 --- Suivi des mises à jour
 PERFORM siflore_data_log();
 
