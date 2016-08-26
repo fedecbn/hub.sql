@@ -1224,7 +1224,85 @@ CASE WHEN format = 'fcbn' THEN
 		LOOP EXECUTE 'COPY (SELECT * FROM  '||libSchema||'.'||source||libTable||' '||listJdd||') TO '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';'; END LOOP;
 	out.lib_log :=  'Tous les jdd ont été exporté au format '||format;
 WHEN format = 'sinp' THEN
-	out.lib_log :=  'format SINP à implémenter';
+	--- TABLE SujetObservation
+	EXECUTE 'COPY (SELECT
+		cd_obs_perm 			as "identifiantPermanent",
+		''Présent'' 			as "statutObservation",
+		nom_ent_mere 			as "nomCite",
+		null 				as "objetGeo",
+		date_debut 			as "dateDebut",
+		date_fin			as "dateFin",
+		null 				as "altitudeMin",
+		null 				as "altitudeMax",
+		null 				as "profondeurMin",
+		null				as "profondeurMax",
+		null 				as "habitat",
+		null				as "denombrement",
+		string_agg(nom_acteur,'', '') 	as "observateur",
+		cd_nom				as "cdNom",
+		cd_ref				as "cdRef",
+		version_reftaxo			as "versionTAXREF",
+		null 				as "determinateur",
+		null 				as dateDetermination,
+		null				as "validateur",
+		string_agg(lib_orgm,'', '')	as "organismeStandard",
+		a.rmq 				as "commentaire"
+		FROM '||libSchema||'.observation a
+		JOIN '||libSchema||'.releve z ON a.cd_releve = z.cd_releve AND a.cd_jdd = z.cd_jdd
+		JOIN '||libSchema||'.releve_acteur e ON a.cd_releve = e.cd_releve  AND a.cd_jdd = e.cd_jdd
+		GROUP BY cd_obs_perm,nom_ent_mere,date_debut,date_fin,cd_nom,cd_ref,version_reftaxo,a.rmq
+	) TO '''||path||'SujetObservation.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+
+	--- TABLE Source
+	EXECUTE 'COPY (SELECT
+		cd_obs_mere 		as "identifiantOrigine",
+		propriete_obs 		as "dSPublique",
+		cd_sensi 		as "diffusionNiveauPrecision",
+		0 			as "diffusionFloutage",
+		null 			as "sensible",
+		cd_sensi 		as "sensiNiveau",
+		null 			as "sensiDateAttribution",
+		lib_refsensi 		as "sensiReferentiel",
+		version_refsensi 	as "sensiVersionReferentiel",
+		typ_source 		as "statutSource",
+		a.cd_jdd 		as "jddCode",
+		a.cd_jdd 		as "jddId",
+		cd_jdd_orig 		as "jddSourceId",
+		a.cd_jdd_perm 		as "jddMetadonneeDEEId",
+		lib_orgm 		as "organismeGestionnaireDonnee",
+		null 			as "codeIDCNPDispositif",
+		current_date 		as "dEEDateTransformation",
+		current_date 		as dEEDateDerniereModification,
+		lib_biblio 		as "referenceBiblio",
+		null 			as "orgTransformation"
+		FROM '||libSchema||'.observation a
+		JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd
+		--WHERE typ_acteur = ''ges''
+		GROUP BY cd_obs_mere,propriete_obs,cd_sensi,lib_refsensi,version_refsensi,typ_source,
+		a.cd_jdd,cd_jdd_orig,a.cd_jdd_perm,lib_orgm,current_date,lib_biblio
+	) TO '''||path||'Source.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	
+	--- TABLE Maille10x10
+	EXECUTE 'COPY (SELECT
+		cd_geo 			as "codeMaille",
+		version_refgeo 		as "versionRef",
+		cd_refgeo 		as "nomRef",
+		origine_geo 		as "typeInfoGeo"
+		FROM '||libSchema||'.releve_territoire a
+		WHERE typ_geo = ''m10''
+	) TO '''||path||'Maille10x10.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+
+	--- TABLE Commune
+	EXECUTE 'COPY (SELECT
+		cd_geo 			as "codeMaille",
+		version_refgeo 		as "versionRef",
+		cd_refgeo 		as "nomRef",
+		origine_geo 		as "typeInfoGeo"
+		FROM '||libSchema||'.releve_territoire a
+		WHERE typ_geo = ''com''
+	) TO '''||path||'Commune.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	
+	out.lib_log :=  'export au format SINP';
 WHEN format = 'list_taxon' THEN
 	EXECUTE 'COPY (SELECT * FROM  '||libSchema||'.'||source||libTable||') TO '''||path||'std_zz_log_liste_taxon.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	EXECUTE 'COPY (SELECT * FROM  '||libSchema||'.'||source||libTable||') TO '''||path||'std_zz_log_liste_taxon_et_infra.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
