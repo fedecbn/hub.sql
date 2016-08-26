@@ -1086,6 +1086,7 @@ WHEN format = 'sinp' THEN
 
 	--- TABLE Source
 	EXECUTE 'COPY (SELECT
+		cd_obs_perm 		as "identifiantPermanent",
 		cd_obs_mere 		as "identifiantOrigine",
 		propriete_obs 		as "dSPublique",
 		cd_sensi 		as "diffusionNiveauPrecision",
@@ -1109,27 +1110,31 @@ WHEN format = 'sinp' THEN
 		FROM '||libSchema||'.observation a
 		JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd
 		--WHERE typ_acteur = ''ges''
-		GROUP BY cd_obs_mere,propriete_obs,cd_sensi,lib_refsensi,version_refsensi,typ_source,
+		GROUP BY cd_obs_perm,cd_obs_mere,propriete_obs,cd_sensi,lib_refsensi,version_refsensi,typ_source,
 		a.cd_jdd,cd_jdd_orig,a.cd_jdd_perm,lib_orgm,current_date,lib_biblio
 	) TO '''||path||'Source.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	
 	--- TABLE Maille10x10
 	EXECUTE 'COPY (SELECT
+		cd_obs_perm 		as "identifiantPermanent",
 		cd_geo 			as "codeMaille",
 		version_refgeo 		as "versionRef",
 		cd_refgeo 		as "nomRef",
 		origine_geo 		as "typeInfoGeo"
 		FROM '||libSchema||'.releve_territoire a
+		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jj = z.cd_jdd
 		WHERE typ_geo = ''m10''
 	) TO '''||path||'Maille10x10.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 
 	--- TABLE Commune
 	EXECUTE 'COPY (SELECT
+		cd_obs_perm 		as "identifiantPermanent",
 		cd_geo 			as "codeMaille",
 		version_refgeo 		as "versionRef",
 		cd_refgeo 		as "nomRef",
 		origine_geo 		as "typeInfoGeo"
 		FROM '||libSchema||'.releve_territoire a
+		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jj = z.cd_jdd
 		WHERE typ_geo = ''com''
 	) TO '''||path||'Commune.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	
