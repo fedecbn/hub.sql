@@ -3,11 +3,11 @@
 ---- FONCTIONS LOCALES ET GLOBALES POUR LE PARTAGE DE DONNÉES AU SEIN DU RESEAU DES CBN
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
-
--------------------------------------------------------------------------------------------------------
+--- Script pl/pgsql permettant de construire et manipuler une hub. Celui-ci permet de construire, importer, 
+--- vérifier, exporter des données dans une base de données Postgresql dans le Format Standard de Données 
+--- du réseau des CBN.
 -------------------------------------------------------------------------------------------------------
 --- Marche à suivre pour générer un hub fonctionnel
--------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 --- 1. Lancer le fichier hub.sql
 --- La fonction hub_admin_init sera lancée automatiquement.
@@ -29,14 +29,25 @@
 --- 6. Envoyer les données sur le hub national (ex : TAXA)
 --- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
 
+
+
+
+
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
---- Fonction Admin 
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
---si zz_log a déjà été créé et qu'un message d'erreur apparait à propos de la variable out.user_log, lancer la requête suivante:
+--- Fonction Admin------------------------------------------------------------------------------------- 
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+
+---si zz_log a déjà été créé et qu'un message d'erreur apparait à propos de la variable out.user_log, lancer la requête suivante:
 --ALTER TABLE public.zz_log add column user_log varchar;
 --ALTER TABLE [libelle_schema_hub].zz_log add column user_log varchar;
+
+--- Initiations de tables indispensables pour le fonctionement du hub
 CREATE TABLE IF NOT EXISTS public.zz_log (lib_schema character varying,lib_table character varying,lib_champ character varying,typ_log character varying,lib_log character varying,nb_occurence character varying,date_log timestamp,user_log varchar);
 CREATE TABLE IF NOT EXISTS public.bilan (uid integer NOT NULL,lib_cbn character varying,data_nb_releve integer,data_nb_observation integer,data_nb_taxon integer,taxa_nb_taxon integer,temp_data_nb_releve integer,temp_data_nb_observation integer,temp_data_nb_taxon integer,temp_taxa_nb_taxon integer,derniere_action character varying, date_derniere_action date,CONSTRAINT bilan_pkey PRIMARY KEY (uid));
 DROP TABLE IF EXISTS twocol CASCADE;	CREATE TABLE public.twocol (col1 varchar, col2 varchar);
@@ -303,187 +314,6 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_ref_create
---- Description : Création et import d'un référentiel 
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_ref_create(libTable varchar, path varchar) RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-DECLARE flag2 integer;
-DECLARE structure varchar;
-DECLARE delimitr varchar;
-BEGIN
-EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
-CASE WHEN libTable = 'aa_meta' THEN
-	--- Initialisation du meta-référentiel
-	CREATE TABLE IF NOT EXISTS ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
-	TRUNCATE ref.aa_meta;
-	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
-ELSE
-	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')'' FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref' INTO structure;
-	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
-	EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
-	EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
-	--- Index geo
-	CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
-	out.lib_log := libTable||' : données importées';RETURN next out;
-END CASE;
-END;$BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_ref_update
---- Description : Met un jour référentiel 
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_ref_update(libTable varchar, path varchar) RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-DECLARE flag2 integer;
-DECLARE delimitr varchar;
-DECLARE prefixe varchar;
-BEGIN
-EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
-CASE WHEN libTable = 'aa_meta' THEN 
-	TRUNCATE ref.aa_meta;
-	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
-ELSE 
-	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr; 
-	CASE WHEN flag2 = 1 THEN
-		EXECUTE 'TRUNCATE ref.'||libTable;
-		EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
-		--- Index geo
-		CASE WHEN substr(libTable,1,3) = 'geo' THEN 
-			EXECUTE 'DROP INDEX IF EXISTS '||libTable||'_gist';
-			EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; 
-		ELSE END CASE;
-		out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
-	ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
-	END CASE;
-END CASE;
-END;$BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_user_add
---- Description : Ajouter un utilisateur et lui donne les droits nécessaires
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_user_add(utilisateur varchar, mdp varchar) RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-declare db_nam varchar;
-declare flag integer;
-BEGIN
-SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
-
-EXECUTE 'SELECT DISTINCT 1 FROM information_schema.enabled_roles WHERE role_name <> '''||utilisateur||''';' INTO flag;
-CASE WHEN flag = 1 THEN 
-EXECUTE 'CREATE USER "'||utilisateur||'" PASSWORD '''||mdp||''';
-	GRANT CONNECT ON DATABASE '||db_nam||' TO "'||utilisateur||'" ;
-	';
-	out.lib_log := utilisateur||' ajouté';
-ELSE out.lib_log := 'ERREUR : '||utilisateur||' existe déjà';
-END CASE;
-
-out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
-END;$BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_user_right_add
---- Description : Ajouter des droits à un utilisateur
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_right_add(utilisateur varchar, schma varchar, role varchar = 'lecteur') RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-declare db_nam varchar;
-declare exist varchar;
-declare listSchem varchar;
-BEGIN
-SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
-
---- Tables hub
-FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema <> 'pg_catalog' AND table_schema <> 'information_schema'
-	LOOP
-		EXECUTE 'GRANT USAGE ON SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-		CASE WHEN listSchem = schma AND role = 'gestionnaire' THEN
-			EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-			EXECUTE 'SELECT * FROM hub_admin_right_dblink('''||utilisateur||''');';
-		ELSE EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
-		END CASE;
-	END LOOP;
-
---- Tables zz_log
-EXECUTE 'SELECT schema_name FROM information_schema.schemata WHERE schema_name = '''||schma||''';' INTO exist;
-CASE WHEN exist IS NOT NULL AND role = 'lecteur' THEN
-	EXECUTE '
-		GRANT INSERT ON TABLE '||schma||'.zz_log TO "'||utilisateur||'";
-		GRANT INSERT,DELETE ON TABLE '||schma||'.zz_log_liste_taxon TO "'||utilisateur||'";
-		GRANT INSERT,DELETE ON TABLE '||schma||'.zz_log_liste_taxon_et_infra TO "'||utilisateur||'";
-		';
-	ELSE END CASE;
-
-out.lib_log := utilisateur||' a les droits de '||role||' sur '||schma;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_rigth_add';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
-END;$BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_right_drop
---- Description : Supprime un utilisateur
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_right_drop(utilisateur varchar) RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-DECLARE db_nam varchar;
-DECLARE listSchem varchar;
-BEGIN
-SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
-EXECUTE '
-	REVOKE ALL PRIVILEGES ON DATABASE '||db_nam||' FROM "'||utilisateur||'";
-	---REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "public" FROM "'||utilisateur||'";
-	---REVOKE ALL PRIVILEGES ON SCHEMA "public" FROM "'||utilisateur||'";
-	---REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "ref" FROM "'||utilisateur||'";
-	---REVOKE ALL PRIVILEGES ON SCHEMA "ref" FROM "'||utilisateur||'";
-	';
-FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema != 'pg_catalog' AND table_schema != 'information_schema'
-	LOOP
-		EXECUTE '
-		REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" FROM "'||utilisateur||'";
-		REVOKE ALL PRIVILEGES ON SCHEMA "'||listSchem||'" FROM "'||utilisateur||'";
-		';
-	END LOOP;
-
-EXECUTE 'SELECT * FROM hub_admin_right_dblink ('''||utilisateur||''', false)';
-
---- Output&Log
-out.lib_log := 'Droits supprimés pour '||utilisateur;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_right_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
-END;$BODY$LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_userdrop
---- Description : Supprime un utilisateur
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_user_drop(utilisateur varchar) RETURNS setof zz_log AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-DECLARE db_nam varchar;
-DECLARE listSchem varchar;
-BEGIN
-SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
-EXECUTE 'SELECT * FROM hub_admin_right_drop('''||utilisateur||''')';
-EXECUTE 'DROP USER IF EXISTS "'||utilisateur||'";';
---- Output&Log
-out.lib_log := utilisateur||' supprimé';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
-END;$BODY$LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_refresh
 --- Description : Pour mettre à jour la structure du FSD lors de changement benin (type de donnée, clé primaire)
 ---------------------------------------------------------------------------------------------------------
@@ -520,10 +350,7 @@ WHEN typ = 'lib_commune' THEN
 	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
 	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
 	out.lib_log := 'Refresh commune OK';
-WHEN typ = 'zz_log' THEN
-	EXECUTE 'ALTER TABLE '||libSchema||'.zz_log ADD COLUMN user_log varchar;';
-	out.lib_log := 'Refresh zz_log OK';
-WHEN typ = 'all' THEN
+WHEN typ = 'transform ' THEN
 	EXECUTE 'SELECT * FROM hub_admin_clone('''||libSchema||'_''); ';
 	sch_from = libSchema;
 	sch_to = libSchema||'_';
@@ -549,86 +376,138 @@ END CASE;
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
 
--------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
---- Fonction Data management 
--------------------------------------------------------------------------------------------------------
--------------------------------------------------------------------------------------------------------
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_add 
---- Description : Ajout de données (fonction utilisée par une autre fonction)
+--- Nom : hub_admin_user_add
+--- Description : Ajouter un utilisateur et lui donne les droits nécessaires
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Attention listJdd null sur jdd erroné
-CREATE OR REPLACE FUNCTION hub_add(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar,jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
-$BODY$  
+CREATE OR REPLACE FUNCTION hub_admin_user_add(utilisateur varchar, mdp varchar) RETURNS setof zz_log AS 
+$BODY$
 DECLARE out zz_log%rowtype;
-DECLARE metasource varchar;
-DECLARE listJdd varchar;
-DECLARE champRefa varchar; 
-DECLARE champRefb varchar; 
-DECLARE source varchar;
-DECLARE destination varchar;
-DECLARE compte integer;
-DECLARE listeChamp1 varchar;
-DECLARE listeChamp2 varchar; 
-DECLARE libChamp varchar; 
-DECLARE cmd varchar; 
-DECLARE jointure varchar; 
-DECLARE nothing varchar; 
+declare db_nam varchar;
+declare flag integer;
 BEGIN
---Variables
-source := '"'||schemaSource||'"."'||tableSource||'"';
-destination := '"'||schemaDest||'"."'||tableDest||'"';
---- Output&Log
-out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
---- Commande
-SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
-CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
-	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
-ELSE listJdd := ''''||jdd||'''';
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
+
+EXECUTE 'SELECT DISTINCT 1 FROM information_schema.enabled_roles WHERE role_name <> '''||utilisateur||''';' INTO flag;
+CASE WHEN flag = 1 THEN 
+EXECUTE 'CREATE USER "'||utilisateur||'" PASSWORD '''||mdp||''';
+	GRANT CONNECT ON DATABASE '||db_nam||' TO "'||utilisateur||'" ;
+	';
+	out.lib_log := utilisateur||' ajouté';
+ELSE out.lib_log := 'ERREUR : '||utilisateur||' existe déjà';
 END CASE;
 
-CASE WHEN typAction = 'push_total' OR typAction = 'push_diff' THEN
-	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
-	EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
-ELSE SELECT 1 INTO nothing; END CASE;
-
-CASE WHEN typAction = 'diff' OR typAction = 'diff_plus' OR typAction = 'push_diff' THEN
-	EXECUTE 'SELECT string_agg(''a.''||cd_champ,''||'') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRefa;
-	EXECUTE 'SELECT string_agg(''b.''||cd_champ||'' IS NULL'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRefb;
-	EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
-	EXECUTE 'SELECT count(DISTINCT '||champRefa||') FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefb||' AND a.cd_jdd IN ('||listJdd||')' INTO compte;
-ELSE SELECT 1 INTO nothing; END CASE;
-
-CASE WHEN typAction = 'push_total' THEN --- CAS utilisé pour ajouter en masse.
-	EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' a WHERE cd_jdd IN ('||listJdd||')';
-		out.nb_occurence := 'total'; out.lib_log := 'Remplacement : Jdd complet(s) ajouté(s)'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
-WHEN typAction = 'push_diff' THEN --- CAS utilisé pour ajouter les différences
-	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
-	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefb||' AND a.cd_jdd IN ('||listJdd||')';
-		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Ajout de la différence : Concept(s) ajouté(s)'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
-	ELSE out.nb_occurence := '-'; out.lib_log := 'Ajout de la différence : Aucune différence'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
-	END CASE;	
-WHEN typAction = 'diff' THEN --- CAS utilisé pour analyser les différences
-	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
-	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
-		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Différence : concept à ajouter depuis '||tableSource||' vers '||tableDest; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
-	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence détectée'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
-	END CASE;
-WHEN typAction = 'diff_plus' THEN --- CAS utilisé pour analyser les différences en profondeur
-	CASE WHEN (compte > 0) THEN
-		cmd := 'SELECT '||champRefa||' FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefb||' AND a.cd_jdd IN ('||listJdd||');';
-		out.nb_occurence := compte||' ajout'; out.lib_log := cmd; RETURN NEXT out;
-	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence détectée'; RETURN NEXT out;
-	END CASE;
-ELSE out.lib_champ := '-'; out.lib_log := 'ERREUR : sur champ action = '||typAction; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
-END CASE;	
+out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_userdrop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_user_drop
+--- Description : Supprime un utilisateur
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_user_drop(utilisateur varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE db_nam varchar;
+DECLARE listSchem varchar;
+BEGIN
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
+EXECUTE 'SELECT * FROM hub_admin_right_drop('''||utilisateur||''')';
+EXECUTE 'DROP USER IF EXISTS "'||utilisateur||'";';
+--- Output&Log
+out.lib_log := utilisateur||' supprimé';out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_user_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
+END;$BODY$LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_right_add
+--- Description : Ajouter des droits à un utilisateur
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_right_add(utilisateur varchar, schma varchar, role varchar = 'lecteur') RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+declare db_nam varchar;
+declare exist varchar;
+declare listSchem varchar;
+BEGIN
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
+
+--- Tables hub
+FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema <> 'pg_catalog' AND table_schema <> 'information_schema'
+	LOOP
+		EXECUTE 'GRANT USAGE ON SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+		CASE WHEN listSchem = schma AND role = 'gestionnaire' THEN
+			EXECUTE 'GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+			EXECUTE 'SELECT * FROM hub_admin_right_dblink('''||utilisateur||''');';
+		ELSE EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA "'||listSchem||'" TO "'||utilisateur||'";';
+		END CASE;
+	END LOOP;
+
+--- Tables zz_log
+EXECUTE 'SELECT schema_name FROM information_schema.schemata WHERE schema_name = '''||schma||''';' INTO exist;
+CASE WHEN exist IS NOT NULL AND role = 'lecteur' THEN
+	EXECUTE '
+		GRANT INSERT ON TABLE '||schma||'.zz_log TO "'||utilisateur||'";
+		GRANT INSERT,DELETE ON TABLE '||schma||'.zz_log_liste_taxon TO "'||utilisateur||'";
+		GRANT INSERT,DELETE ON TABLE '||schma||'.zz_log_liste_taxon_et_infra TO "'||utilisateur||'";
+		';
+	ELSE END CASE;
+
+out.lib_log := utilisateur||' a les droits de '||role||' sur '||schma;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_right_add';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_right_drop
+--- Description : Supprime des droits à un utilisateur
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_right_drop(utilisateur varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE db_nam varchar;
+DECLARE listSchem varchar;
+BEGIN
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
+EXECUTE '
+	REVOKE ALL PRIVILEGES ON DATABASE '||db_nam||' FROM "'||utilisateur||'";
+	---REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "public" FROM "'||utilisateur||'";
+	---REVOKE ALL PRIVILEGES ON SCHEMA "public" FROM "'||utilisateur||'";
+	---REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "ref" FROM "'||utilisateur||'";
+	---REVOKE ALL PRIVILEGES ON SCHEMA "ref" FROM "'||utilisateur||'";
+	';
+FOR listSchem in SELECT DISTINCT table_schema FROM information_schema.tables WHERE table_schema != 'pg_catalog' AND table_schema != 'information_schema'
+	LOOP
+		EXECUTE '
+		REVOKE ALL PRIVILEGES ON ALL TABLES IN SCHEMA "'||listSchem||'" FROM "'||utilisateur||'";
+		REVOKE ALL PRIVILEGES ON SCHEMA "'||listSchem||'" FROM "'||utilisateur||'";
+		';
+	END LOOP;
+
+EXECUTE 'SELECT * FROM hub_admin_right_dblink ('''||utilisateur||''', false)';
+
+--- Output&Log
+out.lib_log := 'Droits supprimés pour '||utilisateur;out.lib_schema := 'public';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_right_drop';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
+END;$BODY$LANGUAGE plpgsql;
+
+
+
+
+
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+--- Fonction Data management --------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -742,27 +621,6 @@ END CASE;
 
 END; $BODY$ LANGUAGE plpgsql;
 
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_truncate
---- Description : Truncate le hub
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_truncate(libSchema varchar,partie varchar = 'temp') RETURNS setof zz_log  AS 
-$BODY$
-DECLARE out zz_log%rowtype;
-DECLARE prefixe varchar;
-DECLARE libTable varchar;
-BEGIN
---- Variables 
-CASE WHEN partie = 'temp' THEN prefixe = 'temp_'; WHEN partie = 'propre' THEN prefixe = ''; ELSE prefixe = 'temp_'; END CASE;
---- Commandes
-FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;' LOOP 
-	EXECUTE 'TRUNCATE '||libSchema||'.'||prefixe||libTable||';'; 
-END LOOP;
---- Output&Log
-out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_truncate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'prefixe = '||prefixe;PERFORM hub_log (libSchema, out);RETURN NEXT out;
-END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -1614,6 +1472,29 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- Nom : hub_truncate
+--- Description : Truncate le hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_truncate(libSchema varchar,partie varchar = 'temp') RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE prefixe varchar;
+DECLARE libTable varchar;
+BEGIN
+--- Variables 
+CASE WHEN partie = 'temp' THEN prefixe = 'temp_'; WHEN partie = 'propre' THEN prefixe = ''; ELSE prefixe = 'temp_'; END CASE;
+--- Commandes
+FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;' LOOP 
+	EXECUTE 'TRUNCATE '||libSchema||'.'||prefixe||libTable||';'; 
+END LOOP;
+--- Output&Log
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_truncate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'prefixe = '||prefixe;PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END; $BODY$ LANGUAGE plpgsql;
+
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 --- Nom : hub_update 
 --- Description : Mise à jour de données (fonction utilisée par une autre fonction)
 ---------------------------------------------------------------------------------------------------------
@@ -1936,6 +1817,82 @@ SELECT * into out FROM hub_verif(libSchema,'data','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'taxa','all');return next out;
 END;$BODY$ LANGUAGE plpgsql;
 
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_add 
+--- Description : Ajout de données (fonction utilisée par une autre fonction)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Attention listJdd null sur jdd erroné
+CREATE OR REPLACE FUNCTION hub_add(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar,jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
+$BODY$  
+DECLARE out zz_log%rowtype;
+DECLARE metasource varchar;
+DECLARE listJdd varchar;
+DECLARE champRefa varchar; 
+DECLARE champRefb varchar; 
+DECLARE source varchar;
+DECLARE destination varchar;
+DECLARE compte integer;
+DECLARE listeChamp1 varchar;
+DECLARE listeChamp2 varchar; 
+DECLARE libChamp varchar; 
+DECLARE cmd varchar; 
+DECLARE jointure varchar; 
+DECLARE nothing varchar; 
+BEGIN
+--Variables
+source := '"'||schemaSource||'"."'||tableSource||'"';
+destination := '"'||schemaDest||'"."'||tableDest||'"';
+--- Output&Log
+out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-'; out.typ_log := 'hub_add'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+--- Commande
+SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN 
+	EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''''||jdd||'''';
+END CASE;
+
+CASE WHEN typAction = 'push_total' OR typAction = 'push_diff' THEN
+	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
+	EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
+ELSE SELECT 1 INTO nothing; END CASE;
+
+CASE WHEN typAction = 'diff' OR typAction = 'diff_plus' OR typAction = 'push_diff' THEN
+	EXECUTE 'SELECT string_agg(''a.''||cd_champ,''||'') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRefa;
+	EXECUTE 'SELECT string_agg(''b.''||cd_champ||'' IS NULL'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRefb;
+	EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
+	EXECUTE 'SELECT count(DISTINCT '||champRefa||') FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefb||' AND a.cd_jdd IN ('||listJdd||')' INTO compte;
+ELSE SELECT 1 INTO nothing; END CASE;
+
+CASE WHEN typAction = 'push_total' THEN --- CAS utilisé pour ajouter en masse.
+	EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' a WHERE cd_jdd IN ('||listJdd||')';
+		out.nb_occurence := 'total'; out.lib_log := 'Remplacement : Jdd complet(s) ajouté(s)'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
+WHEN typAction = 'push_diff' THEN --- CAS utilisé pour ajouter les différences
+	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
+	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
+		EXECUTE 'INSERT INTO '||destination||' ('||listeChamp2||') SELECT '||listeChamp1||' FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefb||' AND a.cd_jdd IN ('||listJdd||')';
+		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Ajout de la différence : Concept(s) ajouté(s)'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+	ELSE out.nb_occurence := '-'; out.lib_log := 'Ajout de la différence : Aucune différence'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
+	END CASE;	
+WHEN typAction = 'diff' THEN --- CAS utilisé pour analyser les différences
+	--- Recherche des concepts (obsevation, jdd ou entite) présent dans la source et absent dans la destination
+	CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
+		out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'Différence : concept à ajouter depuis '||tableSource||' vers '||tableDest; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out);
+	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence détectée'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+	END CASE;
+WHEN typAction = 'diff_plus' THEN --- CAS utilisé pour analyser les différences en profondeur
+	CASE WHEN (compte > 0) THEN
+		cmd := 'SELECT '||champRefa||' FROM '||source||' a LEFT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefb||' AND a.cd_jdd IN ('||listJdd||');';
+		out.nb_occurence := compte||' ajout'; out.lib_log := cmd; RETURN NEXT out;
+	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence détectée'; RETURN NEXT out;
+	END CASE;
+ELSE out.lib_champ := '-'; out.lib_log := 'ERREUR : sur champ action = '||typAction; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+END CASE;	
+END;$BODY$ LANGUAGE plpgsql;
+
+
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_help 
@@ -2226,6 +2183,69 @@ exception when others then
      return FALSE;
 end;
 $$ language plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_ref_create
+--- Description : Création et import d'un référentiel 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_ref_create(libTable varchar, path varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE flag2 integer;
+DECLARE structure varchar;
+DECLARE delimitr varchar;
+BEGIN
+EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
+CASE WHEN libTable = 'aa_meta' THEN
+	--- Initialisation du meta-référentiel
+	CREATE TABLE IF NOT EXISTS ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
+	TRUNCATE ref.aa_meta;
+	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
+ELSE
+	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')'' FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref' INTO structure;
+	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
+	EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out;
+	EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+	--- Index geo
+	CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
+	out.lib_log := libTable||' : données importées';RETURN next out;
+END CASE;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_ref_update
+--- Description : Mise à jour référentiel 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_ref_update(libTable varchar, path varchar) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE flag2 integer;
+DECLARE delimitr varchar;
+DECLARE prefixe varchar;
+BEGIN
+EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag2;
+CASE WHEN libTable = 'aa_meta' THEN 
+	TRUNCATE ref.aa_meta;
+	EXECUTE 'COPY ref.aa_meta (nom_ref, typ, ordre, libelle, format) FROM '''||path||'aa_meta.csv'' HEADER CSV ENCODING ''UTF8'' DELIMITER E''\t'';';
+ELSE 
+	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr; 
+	CASE WHEN flag2 = 1 THEN
+		EXECUTE 'TRUNCATE ref.'||libTable;
+		EXECUTE 'COPY ref.'||libTable||' FROM '''||path||'ref_'||libTable||'.csv'' HEADER CSV DELIMITER E'''||delimitr||''' ENCODING ''UTF8'';';
+		--- Index geo
+		CASE WHEN substr(libTable,1,3) = 'geo' THEN 
+			EXECUTE 'DROP INDEX IF EXISTS '||libTable||'_gist';
+			EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; 
+		ELSE END CASE;
+		out.lib_log := 'Mise à jour de la table '||libTable;RETURN next out;
+	ELSE out.lib_log := 'Les tables doivent être créée auparavant : SELECT * FROM hub_admin_ref(''create'',path)';RETURN next out;
+	END CASE;
+END CASE;
+END;$BODY$ LANGUAGE plpgsql;
 
 
 ---------------------------------------------------------------------------------------------------------
