@@ -840,9 +840,9 @@ BEGIN
 
 --- Commande
 CASE WHEN libSchema = 'mas' THEN
-	EXECUTE 'DELETE FROM observation_reunion.observation_commune_reunion WHERE cd_jdd = '''||jdd||''';';
-	EXECUTE 'DELETE FROM observation_reunion.observation_maille_utm1 WHERE cd_jdd = '''||jdd||''';';
-	EXECUTE 'DELETE FROM observation_reunion.observation_maille_utm10 WHERE cd_jdd = '''||jdd||''';';
+	TRUNCATE observation_reunion.observation_commune_reunion;
+	TRUNCATE observation_reunion.observation_maille_utm1;
+	TRUNCATE observation_reunion.observation_maille_utm10;
 	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
 ELSE
 	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||jdd||''';';
