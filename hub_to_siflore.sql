@@ -345,6 +345,19 @@ CASE 	WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste'
 FROM exploitation.obs_maille_fr10 a
 JOIN exploitation.taxref_new z ON a.cd_ref::integer = z.cd_ref
 GROUP BY a.cd_ref, z.nom_complet, z.rang, liste_bryo, bryophyta;
+
+-- taxons réunion
+INSERT INTO exploitation.taxons
+SELECT a.cd_ref::integer, a.nom_complet, z.rang, 
+CASE 	WHEN liste_bryo IS TRUE AND bryophyta IS TRUE THEN 'bryo_liste' 
+	WHEN liste_bryo IS FALSE AND bryophyta IS TRUE THEN 'bryo_pas_liste' 
+	WHEN liste_bryo IS FALSE AND bryophyta IS FALSE THEN 'tracheo' 
+	ELSE 'problème' END as type
+FROM observation_reunion.index_reunion a
+JOIN exploitation.taxref_new z ON a.cd_ref::integer = z.cd_ref
+LEFT JOIN exploitation.taxons e ON a.cd_ref::integer = e.cd_ref
+WHERE e.cd_ref IS NULL AND a.cd_ref IS NOT NULL
+GROUP BY a.cd_ref, a.nom_complet, z.rang, liste_bryo, bryophyta;
 flag = 1;
 ELSE END CASE;
 
