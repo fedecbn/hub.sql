@@ -1720,6 +1720,33 @@ CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
 ELSE END CASE;
 
 
+--- Test concernant l'intégrité des données (ex: une observation à toujours un relevé correspondant et un relevé a toujours au moins un territoire et un acteur correspondant)
+CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
+FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE fk_table <> '''' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table;' LOOP
+	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null GROUP BY cd_champ;' LOOP
+		FOR result IN EXECUTE 'SELECT cd_champ, fk_table, ''1=1'' as condition FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null and cd_champ='''||libChamp||''' GROUP BY cd_champ, fk_table;' LOOP
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||result.col1||' WHERE  z.'||result.col1||' IS NULL and a.'||libChamp||' is not null;' INTO compte;
+			CASE WHEN (compte > 0) THEN
+				--- log
+				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := result.col1||' - Problème d intégrité la table '''||libTable||''' na pas de correspondance '''||libChamp||''' dans la table '''||result.col2||'''   => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''integrite'');'; 
+				out.nb_occurence := compte||' occurence(s)'; return next out;
+				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
+			ELSE END CASE;
+
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' a LEFT JOIN '||libSchema||'.temp_'||libTable||'  z ON a.'||result.col1||' = z. '||libChamp||' WHERE  z.'||libChamp||' IS NULL and a.'||result.col1||' is not null;' INTO compte;
+			CASE WHEN (compte > 0) THEN
+				--- log
+				out.lib_table := result.col1; out.lib_champ := result.col2; out.lib_log := result.col1||' - Problème d intégrité la table '''||result.col2||''' na pas de correspondance '''||result.col1||''' dans la table '''||libTable||'''  => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col1||''','''||result.col2||''',''integrite'');'; 
+				out.nb_occurence := compte||' occurence(s)'; return next out;
+				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
+			ELSE END CASE;
+			
+			END LOOP;
+		END LOOP;
+	END LOOP;
+ELSE END CASE;
+
+
 --- Le 100%
 CASE WHEN out.lib_log = '' THEN
 	out.lib_table := '-'; out.lib_champ := typVerif; out.lib_log := jdd||' conformes pour '||typVerif; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out); return next out;
