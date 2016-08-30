@@ -720,26 +720,19 @@ WHERE code_taxon = h.cd_ent_mere;
 --- les observations 	
 SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
-	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
 	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
 	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
-	WHERE date_debut IS NOT NULL AND date_fin IS NOT NULL
-	AND cd_validite = 1;
+	WHERE date_debut IS NOT NULL AND date_fin IS NOT NULL;
 -- intégration
 CASE WHEN ct <> 0 THEN
 INSERT INTO observation_reunion.observation_taxon_reunion
 	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ent_mere::integer as code_taxon,nom_ent_mere as nom_taxon,cd_ent_mere::integer as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel,obs.rmq as remarque_taxon,CASE statut_pop WHEN 2 THEN 'Q' WHEN 3 THEN 'Q' WHEN 5 THEN 'W' WHEN 6 THEN 'W' WHEN 0 THEN '0' ELSE 'DD' END as statut_pop,obs.cd_jdd as bd_mere,2 as usage_donnee,cd_jdd_orig as bd_source,lib_jdd_orig as libelle_court_bd_source,
-	cd_obs_orig as id_flore_source,null as sup_donnee,null as remarque_donnee_mere,nature_date as nature_date,rel.rmq as remarque_date,null as syst_ref_spatial,null as nature_objet_geo,ter.rmq as remarque_lieu,CASE typ_source WHEN 'Te' THEN 'T' WHEN 'Co' THEN 'H' WHEN 'Li' THEN 'B' END as type_source,null as type_doc,cd_biblio::integer as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,
+	cd_obs_orig as id_flore_source,null as sup_donnee,null as remarque_donnee_mere,nature_date as nature_date,rel.rmq as remarque_date,null as syst_ref_spatial,null as nature_objet_geo,null as remarque_lieu,CASE typ_source WHEN 'Te' THEN 'T' WHEN 'Co' THEN 'H' WHEN 'Li' THEN 'B' END as type_source,null as type_doc,cd_biblio::integer as cote_biblio_cbn,lib_biblio as titre_doc,null as annee_doc,null as auteur_doc,null as ref_doc,null as code_herbarium,
 	null as code_index_herbariorum,null as nom_herbarium,cd_herbier as code_herbier,lib_herbier as nom_herbier,null as part_herbier,null as id_part,null as cote_biblio_bd_mere,date_debut::date as date_debut_obs,date_fin::date as date_fin_obs,null as id_objet_geo,date_publication as date_transmission,cd_ent_mere as id_flore_mere,meta.cd_jdd as cd_jdd
 	FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
-	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
 	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
 	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
-	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
-	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
 	WHERE date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
@@ -753,7 +746,7 @@ SELECT count(*) INTO ct FROM hub.observation obs
 	AND cd_validite = 1;
 -- intégration	
 CASE WHEN ct <> 0 THEN
-INSERT INTO observation_reunion.observation_maille_utm10 (id_flore_fcbn, code_insee, type_localisation_commune, type_rattachement_commune, remarque_lieu, referentiel_communal, departement)
+INSERT INTO observation_reunion.observation_commune_reunion (id_flore_fcbn, code_insee, type_localisation_commune, type_rattachement_commune, remarque_lieu, referentiel_communal, departement)
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as code_insee, confiance_geo as type_localisation_commune, moyen_geo as type_rattachement_commune, ter.rmq as remarque_lieu, cd_refgeo as referentiel_communal, null as departement
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
@@ -770,8 +763,8 @@ SELECT count(*) INTO ct FROM hub.observation obs
 	AND cd_validite = 1;
 -- intégration	
 CASE WHEN ct <> 0 THEN
-INSERT INTO observation_reunion.observation_maille_utm10
-	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as nom_maille, confiance_geo as type_localisation_maille_utm10, moyen_geo as type_rattachement_maille_utml0, ter.rmq as remarque_lieu
+INSERT INTO observation_reunion.observation_maille_utm10 (id_flore_fcbn, cd_sig, type_localisation_maille_utm10, type_rattachement_maille_utml0,remarque_lieu)
+	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as cd_sig, confiance_geo as type_localisation_maille_utm10, moyen_geo as type_rattachement_maille_utml0, ter.rmq as remarque_lieu
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
 	WHERE typ_geo = 'utm10'
@@ -787,7 +780,7 @@ SELECT count(*) INTO ct FROM hub.observation obs
 	AND cd_validite = 1;
 -- intégration	
 CASE WHEN ct <> 0 THEN
-INSERT INTO observation_reunion.observation_maille_utm1
+INSERT INTO observation_reunion.observation_maille_utm1 (id_flore_fcbn, nom_maille, type_localisation_maille_utm1, type_rattachement_maille_utml, remarque_lieu)
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as nom_maille, confiance_geo as type_localisation_maille_utm1, 	moyen_geo as type_rattachement_maille_utml, ter.rmq as remarque_lieu
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
@@ -850,10 +843,12 @@ BEGIN
 
 --- Commande
 CASE WHEN libSchema = 'mas' THEN
-	TRUNCATE observation_reunion.observation_commune_reunion;
-	TRUNCATE observation_reunion.observation_maille_utm1;
-	TRUNCATE observation_reunion.observation_maille_utm10;
+	TRUNCATE observation_reunion.observation_taxon_reunion CASCADE;
+	TRUNCATE observation_reunion.observation_commune_reunion CASCADE;
+	TRUNCATE observation_reunion.observation_maille_utm1 CASCADE;
+	TRUNCATE observation_reunion.observation_maille_utm10 CASCADE;
 	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||jdd||''';';
+	EXECUTE 'DELETE FROM observation.bd_mere WHERE bd_mere = '''||jdd||''';';
 ELSE
 	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||jdd||''';';
 	EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||jdd||''';';
@@ -901,7 +896,12 @@ ELSE
 	EXECUTE 'SELECT * FROM siflore_data_drop('''||libSchema||''','''||jdd||''')' INTO out;RETURN next out;
 END CASE;
 
-SELECT * INTO out FROM siflore_insert(); RETURN next out;
+/*Insertion des données dans les tables SI FLORE*/
+CASE WHEN libSchema = 'mas' THEN
+	SELECT * INTO out FROM siflore_insert_reunion(); RETURN next out;
+ELSE
+	SELECT * INTO out FROM siflore_insert(); RETURN next out;
+END CASE;
 
 
 -- log
