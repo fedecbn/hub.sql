@@ -317,15 +317,9 @@ END; $BODY$ LANGUAGE plpgsql;
 
 -------------------------------------------------------------
 -------------------------------------------------------------
---------------------------------
 --- Fonction siflore_synthese_refresh
-<<<<<<< HEAD
---- Description : Mise à jour des synthèses
---- Sauf partie REUNION ??
-=======
 --- Description : Mise à jour des synthèses du SI FLORE
->>>>>>> 379f7b3a546c7018461f0b5e5e504834cb7324ab
---------------------------------
+-------------------------------------------------------------
 -------------------------------------------------------------
 CREATE OR REPLACE FUNCTION siflore_synthese_refresh(typ varchar = 'all') RETURNS setof zz_log AS 
 $BODY$
@@ -742,7 +736,7 @@ END CASE;
 --- Les communes
 SELECT count(*) INTO ct FROM hub.observation obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
-	WHERE typ_geo = 'com'
+	WHERE typ_geo = 'com_reu'
 	AND cd_validite = 1;
 -- intégration	
 CASE WHEN ct <> 0 THEN
@@ -750,7 +744,7 @@ INSERT INTO observation_reunion.observation_commune_reunion (id_flore_fcbn, code
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as code_insee, confiance_geo as type_localisation_commune, moyen_geo as type_rattachement_commune, ter.rmq as remarque_lieu, cd_refgeo as referentiel_communal, null as departement
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
-	WHERE typ_geo = 'com'
+	WHERE typ_geo = 'com_reu'
 	AND cd_validite = 1;
 	out.lib_log := 'communes transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
 ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
