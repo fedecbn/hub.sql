@@ -21,7 +21,7 @@
 -------------------------------------------------------------
 --- Pas à pas pour la mise à jour des données dans le SI FLORE ---
 -------------------------------------------------------------
---- 1. Mise à jour des données (HUB SIFLORE => exploitation)
+--- 1. Mise à jour des données (HUB => HUB SIFLORE => SIFLORE /exploitation)
 -- SELECT * FROM siflore_data_refresh('cor');
 --- 2. Mise à jour des tables "dynamiques" utilisées dans l'application SI FLORE (menus déroulants, onglets de synthèse en bas de page...)
 -- SELECT * FROM siflore_synthese_refresh();
@@ -319,6 +319,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 --- Fonction siflore_synthese_refresh
 --- Description : Mise à jour des synthèses
+--- Sauf partie REUNION ??
 --------------------------------
 -------------------------------------------------------------
 CREATE OR REPLACE FUNCTION siflore_synthese_refresh(typ varchar = 'all') RETURNS setof zz_log AS 
@@ -499,6 +500,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 --- Fonction siflore_insert
 --- Description : Met à jour toutes les données du SI FLORE depuis la copie du hub dans le SIFLORE
+--- Sauf partie REUNION
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
@@ -512,6 +514,7 @@ BEGIN
 --- log
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_insert';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 --- Les communes
+--teste la présence de relevés à l'échelle de la commune
 SELECT count(*) INTO ct FROM hub.observation as obs 
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
@@ -526,7 +529,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 	WHERE typ_geo = 'com'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
--- intégration
+-- intégration des relevés à l'échelle de la commune
 CASE WHEN ct <> 0 THEN
 	INSERT INTO exploitation.obs_commune
 	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,	cd_ref::integer as cd_ref, nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
@@ -548,7 +551,8 @@ CASE WHEN ct <> 0 THEN
 	AND cd_validite = 1;
 --- les acteurs des communes
 	UPDATE exploitation.obs_commune input SET libelle_organisme = nom_acteur, observateur = lib_orgm
-	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
+	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm 
+	FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
 	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
 	out.lib_log := 'Communes transférées';out.nb_occurence := ct||' occurence(s)';PERFORM hub_log ('hub', out); RETURN next out;
@@ -556,6 +560,7 @@ ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFO
 END CASE;
 
 --- Les maille10
+--teste la présence de relevés à l'échelle de la maille
 SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
@@ -570,7 +575,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 	WHERE typ_geo = 'm10'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
--- intégration
+-- intégration des relevés à l'échelle de la maille
 CASE WHEN ct <> 0 THEN
 INSERT INTO exploitation.obs_maille_fr10
 	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet,cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 
@@ -601,6 +606,7 @@ ELSE out.lib_log := 'aucune Maille10 transférée';out.nb_occurence := '0'; RETU
 END CASE;
 
 --- Les maille5
+--teste la présence de relevés à l'échelle de la maille
 SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.releve_territoire ter ON rel.cd_jdd = ter.cd_jdd AND rel.cd_releve = ter.cd_releve
@@ -615,7 +621,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 	WHERE typ_geo = 'm5'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
--- intégration	
+-- intégration des relevés à l'échelle de la maille	
 CASE WHEN ct <> 0 THEN
 INSERT INTO exploitation.obs_maille_fr5
 	SELECT	obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn,cd_ref::integer as cd_ref,nom_ent_ref as nom_complet, cd_ent_mere as code_taxon_mere,null as referentiel_mere,nom_ent_mere as nom_taxon_mere,nom_ent_orig as nom_taxon_originel, 	obs.rmq as remarque_taxon,stp.libelle_valeur as libelle_statut_pop, lib_jdd as libelle_court_bd_mere, prp.libelle_valeur as libelle_usage_donnee,	lib_jdd_orig as libelle_court_bd_source, cd_obs_orig as id_flore_source, rel.rmq as remarque_donnee_mere,
@@ -665,13 +671,13 @@ BEGIN
 --- Variable
 connction = 'dbname=si_flore_national port=5433';
 --- Commande
--- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données du schéma agrégation du HUB FCBN
+-- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données provenant du schéma du CBN choisi (tables propres) dans le HUB FCBN
 EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', ''data'', '''||libSchema||''', ''hub'');' into out; RETURN next out;
 /*problèmes code maille*/
 UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
 UPDATE hub.releve_territoire SET cd_geo = '5kmL93'||cd_geo WHERE typ_geo = 'm5' AND cd_geo NOT LIKE '5kmL93%';
 
--- 2. ... (SIFLORE) on pousse les données au sein du hub SI FLORE (suppression + ajout)
+-- 2. ... (SIFLORE) on supprime les données du SI FLORE provenant du CBN choisi
 FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
 	EXECUTE 'DELETE FROM exploitation.obs_commune WHERE cd_jdd = '''||listJdd||''';';
 	EXECUTE 'DELETE FROM exploitation.obs_maille_fr10 WHERE cd_jdd = '''||listJdd||''';';
@@ -679,7 +685,7 @@ FOR listJdd IN SELECT cd_jdd FROM hub.metadonnees LOOP
 	EXECUTE 'DELETE FROM exploitation.suivi_maj_data WHERE cd_jdd = '''||listJdd||''';';
 	EXECUTE 'INSERT INTO exploitation.suivi_maj_data VALUES ('''||listJdd||''',CURRENT_TIMESTAMP);';
 END LOOP;	
-
+-- 3. ... HUB SIFLORE => SIFLORE exploitation
 SELECT * INTO out FROM siflore_insert(); RETURN next out;
 SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
 
