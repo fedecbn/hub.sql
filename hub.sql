@@ -9,15 +9,18 @@
 -------------------------------------------------------------------------------------------------------
 --- Marche à suivre pour générer un hub fonctionnel
 -------------------------------------------------------------------------------------------------------
+--- 0. Créer une base de données pour y installer le hub (ou sélectionner la base de données Postgres existante)
+--- CREATE DATABASE hub ENCODING = 'UTF8';
+
 --- 1. Lancer le fichier hub.sql
 --- La fonction hub_admin_init sera lancée automatiquement.
 
 --- 2. Installer le hub							
 --- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'aa_meta')
 --- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'all')
---- SELECT * FROM hub_clone('hub')
+--- SELECT * FROM hub_admin_clone('hub')
 
---- 3. Importer une jeu de données (ex :  TAXA)
+--- 3. Importer un jeu de données (ex :  TAXA)
 --- SELECT * FROM hub_import('hub','taxa',[path]);
 
 --- 4. Vérifier le jeu de données (ex : TAXA)
@@ -28,6 +31,9 @@
 
 --- 6. Envoyer les données sur le hub national (ex : TAXA)
 --- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
+
+--- 7. Récupérer des données depuis le hub national vers le hub local(ex : TAXA)
+--- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', [trigramme_cbn], 'hub');
 
 
 
