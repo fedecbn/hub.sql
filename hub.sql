@@ -1724,11 +1724,11 @@ ELSE END CASE;
 CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
 FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE fk_table <> '''' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table;' LOOP
 	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null GROUP BY cd_champ;' LOOP
-		FOR result IN EXECUTE 'SELECT cd_champ, fk_table, ''1=1'' as condition FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null and cd_champ='''||libChamp||''' GROUP BY cd_champ, fk_table;' LOOP
+		FOR result IN EXECUTE 'SELECT cd_champ, fk_table FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null and cd_champ='''||libChamp||''' GROUP BY cd_champ, fk_table;' LOOP
 			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||result.col1||' WHERE  z.'||result.col1||' IS NULL and a.'||libChamp||' is not null;' INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := result.col1||' - Problème d intégrité la table '''||libTable||''' na pas de correspondance '''||libChamp||''' dans la table '''||result.col2||'''   => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||''','''||libChamp||''',''integrite'');'; 
+				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := result.col1||' - Problème d intégrité la table '''||libTable||''' na pas de correspondance '''||libChamp||''' dans la table '''||result.col2||'''   => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||','||result.col2||''','''||libChamp||''',''integrite'');'; 
 				out.nb_occurence := compte||' occurence(s)'; return next out;
 				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
@@ -1736,7 +1736,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE fk_table <> '''' AND
 			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' a LEFT JOIN '||libSchema||'.temp_'||libTable||'  z ON a.'||result.col1||' = z. '||libChamp||' WHERE  z.'||libChamp||' IS NULL and a.'||result.col1||' is not null;' INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				out.lib_table := result.col1; out.lib_champ := result.col2; out.lib_log := result.col1||' - Problème d intégrité la table '''||result.col2||''' na pas de correspondance '''||result.col1||''' dans la table '''||libTable||'''  => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col1||''','''||result.col2||''',''integrite'');'; 
+				out.lib_table := result.col1; out.lib_champ := result.col2; out.lib_log := result.col1||' - Problème d intégrité la table '''||result.col2||''' na pas de correspondance '''||result.col1||''' dans la table '''||libTable||'''  => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col2||','||libTable||''','''||result.col1||''',''integrite'');'; 
 				out.nb_occurence := compte||' occurence(s)'; return next out;
 				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
@@ -1768,6 +1768,9 @@ DECLARE champRefSelected varchar;
 DECLARE champRef varchar;
 DECLARE typChamp varchar;
 DECLARE flag integer;
+DECLARE result twocol%rowtype;
+DECLARE table varchar;
+
 BEGIN
 --- Output
 out.lib_schema := libSchema;out.typ_log := 'hub_verif_plus';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
@@ -1837,9 +1840,26 @@ CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
 	END LOOP;
 ELSE END CASE;
 
+
+--- Test concernant l'intégrité des données (ex: une observation à toujours un relevé correspondant et un relevé a toujours au moins un territoire et un acteur correspondant)
+CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
+
+		
+			FOR result IN EXECUTE 'SELECT split_part('''||libTable||''','','',1) as table1,split_part('''||libTable||''','','',2) as table2;' LOOP
+					--- log
+					FOR champRefSelected IN EXECUTE 'SELECT a.'||libChamp||' FROM '||libSchema||'.temp_'||result.col1||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' WHERE  z.'||libChamp||' IS NULL and a.'||libChamp||' is not null;' LOOP
+					out.lib_table := result.col1; out.lib_champ := libChamp; out.lib_log := champRefSelected; 
+					out.nb_occurence := 'SELECT a.*, z.'||libChamp||' as '||libChamp||'_jointure FROM "'||libSchema||'"."temp_'||result.col1||'" a  LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' WHERE a.'||libChamp||' = '''||champRefSelected||''''; return next out;
+					END LOOP;
+			END LOOP;
+
+			
+ELSE END CASE;
+
 --- Log général
 RETURN;END;$BODY$ LANGUAGE plpgsql;
 
+--SELECT * FROM hub_verif_plus('hub','releve','cd_releve','integrite');
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_verif_all
