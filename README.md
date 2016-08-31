@@ -8,13 +8,8 @@ Pour l'utiliser, il suffit de la charger le script hub.sql dans une base Postgre
 #Utilisation
 Une fois chargée, toutes les fonctions peuvent être appelées de la manière suivante : SELECT * FROM nom_de_la_fontion('variables');
 
-Pour avoir plus d'information sur les fonctions utiles :
-- SELECT * FROM hub_help(); --> donne la liste des fonctions disponibles
-- SELECT * FROM hub_help('nom_de_la_fonction'); --> donne la derscription de la fonction en question.
+Pour avoir plus d'information sur les fonctions utiles : SELECT * FROM hub_help(); --> donne la liste des fonctions disponibles
 
 La table zz_log garde en mémoire les résultats des différentes fonctions (notamment les fonctions de vérification).
 
 Plus de documentation sur l'utilisation des différentes fonctions est disponible sur http://wiki.fcbn.fr/doku.php?id=outil:hub
-
-#Channel de discussion :
-[![Join the chat at https://gitter.im/TomMilon/hub](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/TomMilon/hub?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
