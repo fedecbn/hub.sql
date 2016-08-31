@@ -260,6 +260,37 @@ END CASE;
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_right';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('hub', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
+-------------------------------------------------------------
+-------------------------------------------------------------
+--------------------------------
+--- Fonction : siflore_taxref_no_change
+--- Description : génère une table taxref avec les taxons valables pour la version de taxref choisi (= pas de modification notable entre la version défini et les autres versions).
+--------------------------------
+-------------------------------------------------------------
+-------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_taxref_no_change(version integer) RETURNS setof zz_log AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE listVersion varchar;
+BEGIN
+/*Fonction*/
+EXECUTE 'CREATE TABLE IF NOT EXISTS exploitation.taxref_no_change_'||version||' (version integer,cd_ref integer,nom_valide varchar,CONSTRAINT taxref_no_change_'||version||'_pk PRIMARY KEY (version,cd_ref));';
+
+FOR listVersion IN 2..9 LOOP
+	EXECUTE 'INSERT INTO exploitation.taxref_no_change_'||version||' 
+	SELECT '''||listVersion||''' as version, a.cd_ref::integer, a.nom_valide 
+	FROM ref.taxref_v'||listVersion||'  a
+	JOIN ref.taxref_v'||version||' z ON 
+	a.regne = z.regne AND a.phylum = z.phylum AND a.classe = z.classe AND a.ordre = z.ordre AND a.famille = z.famille AND a.cd_nom = z.cd_nom AND a.cd_ref = z.cd_ref AND a.rang = z.rang 
+	AND a.lb_nom = z.lb_nom AND a.lb_auteur = z.lb_auteur AND a.nom_complet = z.nom_complet AND a.nom_valide = z.nom_valide
+	GROUP BY a.cd_ref,a.nom_valide
+	;';
+END LOOP;
+--- Log
+out.lib_log := 'exploitation.taxref_no_change'||version||' créé';
+out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_taxref_no_change';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('hub', out);RETURN NEXT out;
+END; $BODY$ LANGUAGE plpgsql;
+
 
 -------------------------------------------------------------
 -------------------------------------------------------------
