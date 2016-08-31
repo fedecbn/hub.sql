@@ -1723,15 +1723,6 @@ CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
 ELSE --- rien
 END CASE;
 
---- Test concernant les dates
-/*
-CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
-	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date  LIMIT '||limited||';' LOOP 
-	out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out; END LOOP;
-ELSE END CASE;
-*/
-
-
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
 		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM hub.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
 			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' and date_debut::date > date_fin::date;' into champRefSelected;
@@ -1771,7 +1762,7 @@ ELSE END CASE;
 --- Log général
 RETURN;END;$BODY$ LANGUAGE plpgsql;
 
---SELECT * FROM hub_verif_plus('hub','releve','cd_releve','integrite');
+
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 --- Nom : hub_verif_all
@@ -1796,6 +1787,101 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_right_dblink
+--- Description : Ajout des droits de l'utilisation de dblink aux utilisateurs
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_right_dblink (login varchar, is_granted boolean = true) RETURNS varchar  AS 
+$BODY$ 
+DECLARE cmd varchar;
+BEGIN
+CASE WHEN is_granted  IS TRUE THEN
+cmd = '
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_delete(text,int2vector,integer,text[]) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_insert(text,int2vector,integer,text[],text[]) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_update(text,int2vector,integer,text[],text[]) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_cancel_query(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect_u(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_connect_u(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_disconnect(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_error_message(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_notify() TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_notify(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_pkey(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_result(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_get_result(text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_is_busy(text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) TO "'||login||'";
+GRANT ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) TO "'||login||'";
+';
+ELSE 
+cmd = '
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_delete(text,int2vector,integer,text[]) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_insert(text,int2vector,integer,text[],text[]) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_update(text,int2vector,integer,text[],text[]) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_cancel_query(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect_u(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect_u(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_disconnect(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_error_message(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_notify() FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_notify(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_pkey(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_result(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_result(text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_is_busy(text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) FROM "'||login||'";
+REVOKE ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) FROM "'||login||'";
+';
+END CASE;
+EXECUTE cmd;
+RETURN 'OK';
+END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -2092,168 +2178,6 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_agg_refresh
---- Description : met à jour les données dans le schema aggrégation
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_agg_refresh () RETURNS setof zz_log AS 
-$BODY$ 
-DECLARE out zz_log%rowtype;
-DECLARE out_maj twocol%rowtype;
-BEGIN
---- Variable
---- Commande
--- 0. pour tous les jeux de données nouvellement poussées...
-FOR out_maj IN SELECT lib_schema, nb_occurence as typ_jdd FROM public.zz_log
-	WHERE typ_log = 'hub_push' AND date_log >= current_date -1 AND lib_log LIKE 'Données poussées%'
-	GROUP BY lib_schema, nb_occurence ORDER BY lib_schema
-	LOOP
-	-- 1. ...  on pousse les nouvelles données des schema CBN vers le schema agrégation , partie temp puis propre
-	EXECUTE 'SELECT * FROM hub_push('''||out_maj.col1||''','''||out_maj.col2||''', ''replace'', 2)';
-	EXECUTE 'SELECT * FROM hub_push(''agregation'','''||out_maj.col2||''', ''add'', 1);';
-	-- 2. ... on nettoie les données dans le schema agrégation , partie temp 
-	EXECUTE 'SELECT * FROM hub_clear(''agregation'','''||out_maj.col2||''');';
-	-- log
-	out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_agg_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'mise à jour OK : '||out_maj.col2; PERFORM hub_log ('public', out); RETURN next out;
-END LOOP;
-
-END;$BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_runfc
---- Description : Lancer successivement une fonction pour chaque cbn
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_runfc() RETURNS varchar AS
-$BODY$ 
-DECLARE cbn varchar[];
-DECLARE nb integer;
-BEGIN
---- Liste des schema
-cbn = ARRAY['als', 'alp', 'bal','bpa', 'bre', 'cor', 'frc','mas','mce','med','pmp','sat'];
-
---- Changer le nombre à chaque fois
--- nb = 1; -- 
--- nb = 2; -- 
--- nb = 3; -- 
--- nb = 4; -- 
--- nb = 5; -- 
--- nb = 6; --
--- nb = 7; --
--- nb = 8; --
--- nb = 9; --
--- nb = 10; --
--- nb = 11; --
--- nb = 12; --
-
---- Fonctions lancés
----PERFORM hub_push(''||cbn[nb]||'','data', 'replace', 2);
----PERFORM hub_push(''||cbn[nb]||'','taxa', 'replace', 2);
-
-RETURN nb||'-'||cbn[nb];
-END;$BODY$ LANGUAGE plpgsql;
-
---- SELECT hub_runfc();
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_admin_right_dblink
---- Description : Ajout des droits de l'utilisation de dblink aux utilisateurs
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_admin_right_dblink (login varchar, is_granted boolean = true) RETURNS varchar  AS 
-$BODY$ 
-DECLARE cmd varchar;
-BEGIN
-CASE WHEN is_granted  IS TRUE THEN
-cmd = '
-GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink(text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_delete(text,int2vector,integer,text[]) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_insert(text,int2vector,integer,text[],text[]) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_build_sql_update(text,int2vector,integer,text[],text[]) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_cancel_query(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_close(text,text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_connect(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_connect(text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_connect_u(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_connect_u(text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_disconnect(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_error_message(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_exec(text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_get_notify() TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_get_notify(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_get_pkey(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_get_result(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_get_result(text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_is_busy(text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) TO "'||login||'";
-GRANT ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) TO "'||login||'";
-';
-ELSE 
-cmd = '
-REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink(text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_delete(text,int2vector,integer,text[]) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_insert(text,int2vector,integer,text[],text[]) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_build_sql_update(text,int2vector,integer,text[],text[]) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_cancel_query(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_close(text,text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect(text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect_u(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_connect_u(text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_disconnect(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_error_message(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_exec(text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,integer,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_fetch(text,text,integer,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_notify() FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_notify(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_pkey(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_result(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_get_result(text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_is_busy(text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_open(text,text,text,boolean) FROM "'||login||'";
-REVOKE ALL PRIVILEGES ON FUNCTION dblink_send_query(text,text) FROM "'||login||'";
-';
-END CASE;
-EXECUTE cmd;
-RETURN 'OK';
-END;$BODY$ LANGUAGE plpgsql;
-
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
 --- Nom : hub_publicate
 --- Description : Notifie la demande de publisation sur le SI FLORE des données
 ---------------------------------------------------------------------------------------------------------
@@ -2282,24 +2206,6 @@ ELSE
 	END CASE;
 END CASE;
 END;$BODY$ LANGUAGE plpgsql;
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Nom : hub_verif_date
---- Description : Fonction de vérification du format date d'un champ
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_verif_date (champ varchar) returns boolean as $$
-begin
-     if ($1 is null) then
-         return FALSE;
-     end if;
-     PERFORM $1::date;
-     return TRUE;
-exception when others then
-     return FALSE;
-end;
-$$ language plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -2363,6 +2269,25 @@ ELSE
 	END CASE;
 END CASE;
 END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_verif_date
+--- Description : Fonction de vérification du format date d'un champ
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_verif_date (champ varchar) returns boolean as $$
+begin
+     if ($1 is null) then
+         return FALSE;
+     end if;
+     PERFORM $1::date;
+     return TRUE;
+exception when others then
+     return FALSE;
+end;
+$$ language plpgsql;
+
 
 
 ---------------------------------------------------------------------------------------------------------
