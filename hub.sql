@@ -1595,7 +1595,7 @@ ELSE END CASE;
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
 		compte:=0;
 		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM hub.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
-			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' and date_debut::date > date_fin::date;' into val;
+			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' AND ((date_debut::date > now() OR  date_fin::date > now()) or date_debut::date > date_fin::date) ;' into val;
 			CASE WHEN val is not null THEN compte:=compte +1;  ELSE END CASE;
 		END LOOP;
 		CASE WHEN (compte > 0) THEN
@@ -1725,7 +1725,7 @@ END CASE;
 
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
 		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM hub.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
-			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' and date_debut::date > date_fin::date;' into champRefSelected;
+			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' AND  ((date_debut::date > now() OR  date_fin::date > now()) or date_debut::date > date_fin::date);' into champRefSelected;
 				CASE WHEN champRefSelected is not null 
 				THEN out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out;   
 				ELSE END CASE;
