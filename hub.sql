@@ -695,11 +695,11 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_connect_simple 
+--- Nom : hub_simple_connect 
 --- Description :  Copie du Hub vers un serveur distant
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect_simple(jdd varchar, libSchema_from varchar, libSchema_to varchar, conect varchar  = 'dbname=si_flore_national port=5433') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_simple_connect(conect varchar, jdd varchar, libSchema_from varchar, libSchema_to varchar) RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
@@ -750,7 +750,7 @@ END LOOP;
 
 --- Output&Log
 out.lib_log := jdd||' importé';
-out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_simple';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+out.lib_schema := libSchema_to;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 PERFORM hub_log (libSchema_to, out);RETURN next out;
 
 END;$BODY$ LANGUAGE plpgsql;
@@ -823,20 +823,21 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
---- Nom : hub_connect_ref_simple
+--- Nom : hub_simple_connect_ref
 --- Description :  Mise à jour du référentiel FSD depuis le hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect_ref_simple(connction varchar = 'dbname=si_flore_national port=5433',refPartie varchar = 'fsd') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_simple_connect_ref(refPartie varchar = 'fsd') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
+DECLARE connction varchar;
 DECLARE flag integer;
 DECLARE libTable varchar;
 DECLARE structure varchar;
 DECLARE bdlink_structure varchar;
 BEGIN
 --- Variables
-
+connction = 'dbname=si_flore_national port=5433';
 --- Log
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
 
@@ -881,8 +882,148 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 END LOOP;
 
 --- Output&Log
-out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref_simple';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
+out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
 END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_del 
+--- Description : Suppression de données (fonction utilisée par une autre fonction)
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_del(schemaSource varchar,schemaDest varchar, tableSource varchar, tableDest varchar, jdd varchar, typAction varchar = 'diff') RETURNS setof zz_log  AS 
+$BODY$  
+DECLARE out zz_log%rowtype;
+DECLARE metasource varchar;
+DECLARE listJdd varchar;
+DECLARE source varchar;
+DECLARE destination varchar;
+DECLARE champRef varchar;
+DECLARE champRefb varchar;
+DECLARE champRefc varchar;
+DECLARE compte integer;
+DECLARE jointure varchar;
+DECLARE cmd varchar;
+BEGIN
+--Variable
+SELECT CASE WHEN substring(tableSource from 0 for 5) = 'temp' THEN 'temp_metadonnees' ELSE 'metadonnees' END INTO metasource;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN EXECUTE 'SELECT CASE WHEN string_agg(''''''''||cd_jdd||'''''''','','') IS NULL THEN ''''''vide'''''' ELSE string_agg(''''''''||cd_jdd||'''''''','','') END FROM "'||schemaSource||'"."'||metasource||'" WHERE typ_jdd = '''||jdd||''';' INTO listJdd;
+ELSE listJdd := ''''||jdd||'''';END CASE;
+source := '"'||schemaSource||'"."'||tableSource||'"';
+destination := '"'||schemaDest||'"."'||tableDest||'"';
+--- Output&Log
+out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '-';out.typ_log := 'hub_del'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
+
+--- Commande
+EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
+--- Recherche des concepts (obsevation, jdd ou entite) présent dans la partie propre et présent dans la partie temporaire
+EXECUTE 'SELECT string_agg(''b.''||cd_champ,''||'') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRef;
+EXECUTE 'SELECT string_agg('' b.''||cd_champ||'' = b.''||cd_champ,'' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRefb;
+EXECUTE 'SELECT string_agg(''a.''||cd_champ||'' IS NULL'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRefc;
+EXECUTE 'SELECT count(DISTINCT '||champRef||') FROM '||source||' b LEFT JOIN '||destination||' a ON '||jointure||' WHERE b.cd_jdd IN ('||listJdd||')' INTO compte; 
+	
+CASE WHEN (compte > 0) THEN --- Si de nouveau concept sont succeptible d'être ajouté
+	out.nb_occurence := compte||' occurence(s)'; ---log
+	CASE WHEN typAction = 'push_diff' THEN
+		EXECUTE 'DELETE FROM '||destination||' as a USING '||source||' as b WHERE '||champRefb||' AND b.cd_jdd IN ('||listJdd||')';
+		---cmd = 'DELETE FROM '||destination||' USING '||source||' as b WHERE '||champRefb||' AND b.cd_jdd IN ('||listJdd||')';
+		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Concepts supprimés'; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+		---out.nb_occurence := compte||' occurence(s)';out.lib_log := cmd; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+	WHEN typAction = 'diff' THEN
+		out.nb_occurence := compte||' occurence(s)';out.lib_log := 'Points communs'; PERFORM hub_log (schemaSource, out);RETURN NEXT out;
+	WHEN typAction = 'diff_plus' THEN
+		CASE WHEN (compte > 0) THEN
+		cmd := 'SELECT '||champRef||' FROM '||source||' a RIGHT JOIN '||destination||' b ON '||jointure||' WHERE '||champRefc||' AND a.cd_jdd IN ('||listJdd||');';
+		out.nb_occurence := compte||' suppression'; out.lib_log := cmd; RETURN NEXT out;
+	ELSE out.nb_occurence := '-'; out.lib_log := 'Aucune différence détectée'; RETURN NEXT out;
+	END CASE;
+	ELSE out.nb_occurence := compte||' occurence(s)'; out.lib_log := 'ERREUR : sur champ action = '||typAction; RETURN NEXT out; ---PERFORM hub_log (schemaSource, out);
+	END CASE;
+ELSE out.lib_log := 'Aucune différence';out.nb_occurence := '-'; RETURN NEXT out; --- PERFORM hub_log (schemaSource, out); 
+END CASE;	
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_diff 
+--- Description : Analyse des différences entre une source et une cible
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_diff(libSchema varchar, jdd varchar,typAction varchar = 'add',mode integer = 1) RETURNS setof zz_log  AS 
+$BODY$ 
+DECLARE out zz_log%rowtype;
+DECLARE flag integer;
+DECLARE ct integer;
+DECLARE ct2 integer;
+DECLARE typJdd varchar;
+DECLARE cmd varchar;
+DECLARE libTable varchar;
+DECLARE tableSource varchar;
+DECLARE tableDest varchar;
+DECLARE schemaSource varchar;
+DECLARE schemaDest varchar;
+DECLARE tableRef varchar;
+DECLARE nothing varchar;
+BEGIN
+--- Output&Log
+out.lib_schema := schemaSource; 
+--- Variables
+ct =0; ct2=0;
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN  typJdd := jdd; flag := 1;
+ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".temp_metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd;
+	CASE WHEN typJdd = 'data' OR typJdd = 'taxa' THEN flag := 1; ELSE flag := 0; END CASE;
+END CASE;
+--- mode 1 = intra Shema / mode 2 = entre shema et agregation
+CASE WHEN mode = 1 THEN schemaSource :=libSchema; schemaDest :=libSchema; WHEN mode = 2 THEN schemaSource :=libSchema; schemaDest :='agregation'; ELSE flag :=0; END CASE;
+--- Commandes
+CASE WHEN typAction = 'add' AND flag = 1 THEN
+	--- Données et metadonnées
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'' ORDER BY cd_table;' LOOP 
+		ct = ct +1;
+		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
+		SELECT * INTO out FROM  hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd,'diff'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
+		SELECT * INTO out FROM  hub_update(schemaSource,schemaDest, tableSource, tableDest , jdd,'diff'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
+		SELECT * INTO out FROM  hub_add(schemaDest,schemaSource, tableDest, tableSource , jdd,'diff'); --- sens inverse (champ présent dans le propre et absent dans le temporaire)
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
+	END LOOP;
+	ct2 = ct2/3;
+WHEN typAction = 'del' AND flag = 1 THEN
+	--- Données et métadonnées
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'' ORDER BY cd_table;' LOOP 
+		ct = ct +1;
+		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
+		SELECT * INTO out FROM  hub_del(schemaSource,schemaDest, tableSource, tableDest , jdd,'diff'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out);ELSE ct2 = ct2 +1; END CASE;
+	END LOOP;
+WHEN typAction = 'diff_plus' AND flag = 1 THEN
+	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'' ORDER BY cd_table;' LOOP 
+		ct = ct +1;
+		CASE WHEN mode = 1 THEN tableSource := 'temp_'||libTable; tableDest := libTable; WHEN mode = 2 THEN tableSource := libTable; tableDest := 'temp_'||libTable; END CASE;
+		SELECT * INTO out FROM  hub_add(schemaSource,schemaDest, tableSource, tableDest , jdd,'diff_plus'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2 +1; END CASE;
+		SELECT * INTO out FROM  hub_update(schemaSource,schemaDest, tableSource, tableDest , jdd,'diff_plus'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2 +1; END CASE;
+		SELECT * INTO out FROM  hub_add(schemaDest,schemaSource, tableDest, tableSource , jdd,'diff_plus'); --- sens inverse (champ présent dans le propre et absent dans le temporaire)
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; ELSE ct2 = ct2 +1; END CASE;
+	END LOOP;
+	ct2 = ct2/3;	
+ELSE out.lib_table := libTable; out.lib_log := jdd||' n''est pas un jeu de données valide'; out.nb_occurence := '-'; PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END CASE;
+
+--- Last log
+out.typ_log := 'hub_diff'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user; out.lib_table := '-'; out.lib_champ := '-'; out.nb_occurence := ct||' tables analysées';
+CASE WHEN ct = ct2 AND typAction = 'del' THEN out.lib_log := 'Aucun point commun sur le jdd '||jdd;  
+	WHEN ct <> ct2 AND typAction = 'del' THEN out.lib_log := 'Des points communs sont présents - jdd '||jdd; 
+	WHEN ct = ct2 AND typAction = 'add' THEN out.lib_log := 'Aucune différence sur le jdd '||jdd;
+	WHEN ct <> ct2 AND typAction = 'add' THEN out.lib_log := 'Des différences sont présentes - jdd '||jdd;
+	WHEN ct = ct2 AND typAction = 'diff_plus' THEN out.lib_log := 'Aucune différence sur le jdd '||jdd;
+	WHEN ct <> ct2 AND typAction = 'diff_plus' THEN out.lib_log := 'Des différences sont présentes - jdd '||jdd;
+	ELSE SELECT 1 INTO  nothing; END CASE;
+PERFORM hub_log (libSchema, out);RETURN NEXT out; 
+END;$BODY$ LANGUAGE plpgsql;
+
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -1584,18 +1725,18 @@ CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
 FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE fk_table <> '''' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table;' LOOP
 	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null GROUP BY cd_champ;' LOOP
 		FOR result IN EXECUTE 'SELECT cd_champ, fk_table FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null and cd_champ='''||libChamp||''' GROUP BY cd_champ, fk_table;' LOOP
-			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||result.col1||' WHERE  z.'||result.col1||' IS NULL and a.'||libChamp||' is not null;' INTO compte;
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||result.col1||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||result.col1||' IS NULL and a.'||libChamp||' is not null;' INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := result.col1||' - Problème d intégrité la table '''||libTable||''' na pas de correspondance '''||libChamp||''' dans la table '''||result.col2||'''   => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||','||result.col2||''','''||libChamp||''',''integrite'');'; 
+				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Problème d intégrité: la table '''||libTable||''' a '||compte||' données qui n ont pas de champ '''||libChamp||''' correspondant dans la table '''||result.col2||'''   => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||','||result.col2||''','''||libChamp||''',''integrite'');'; 
 				out.nb_occurence := compte||' occurence(s)'; return next out;
 				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
 
-			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' a LEFT JOIN '||libSchema||'.temp_'||libTable||'  z ON a.'||result.col1||' = z. '||libChamp||' WHERE  z.'||libChamp||' IS NULL and a.'||result.col1||' is not null;' INTO compte;
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' a LEFT JOIN '||libSchema||'.temp_'||libTable||'  z ON a.'||result.col1||' = z. '||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||libChamp||' IS NULL and a.'||result.col1||' is not null;' INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
-				out.lib_table := result.col1; out.lib_champ := result.col2; out.lib_log := result.col1||' - Problème d intégrité la table '''||result.col2||''' na pas de correspondance '''||result.col1||''' dans la table '''||libTable||'''  => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col2||','||libTable||''','''||result.col1||''',''integrite'');'; 
+				out.lib_table := result.col1; out.lib_champ := result.col2; out.lib_log := 'Problème d intégrité: la table '''||result.col2||''' a '||compte||' données qui n ont pas de champ '''||result.col1||''' correspondant dans la table  '''||libTable||'''  => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col2||','||libTable||''','''||result.col1||''',''integrite'');'; 
 				out.nb_occurence := compte||' occurence(s)'; return next out;
 				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
@@ -1706,9 +1847,9 @@ CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
 		
 			FOR result IN EXECUTE 'SELECT split_part('''||libTable||''','','',1) as table1,split_part('''||libTable||''','','',2) as table2;' LOOP
 					--- log
-					FOR champRefSelected IN EXECUTE 'SELECT a.'||libChamp||' FROM '||libSchema||'.temp_'||result.col1||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' WHERE  z.'||libChamp||' IS NULL and a.'||libChamp||' is not null;' LOOP
+					FOR champRefSelected IN EXECUTE 'SELECT a.'||libChamp||' FROM '||libSchema||'.temp_'||result.col1||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||libChamp||' IS NULL and a.'||libChamp||' is not null;' LOOP
 					out.lib_table := result.col1; out.lib_champ := libChamp; out.lib_log := champRefSelected; 
-					out.nb_occurence := 'SELECT a.*, z.'||libChamp||' as '||libChamp||'_jointure FROM "'||libSchema||'"."temp_'||result.col1||'" a  LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' WHERE a.'||libChamp||' = '''||champRefSelected||''''; return next out;
+					out.nb_occurence := 'SELECT a.*, z.'||libChamp||' as '||libChamp||'_jointure FROM "'||libSchema||'"."temp_'||result.col1||'" a  LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE a.'||libChamp||' = '''||champRefSelected||''''; return next out;
 					END LOOP;
 			END LOOP;
 
@@ -1733,17 +1874,6 @@ SELECT * into out FROM hub_verif(libSchema,'meta','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'data','all');return next out;
 SELECT * into out FROM hub_verif(libSchema,'taxa','all');return next out;
 END;$BODY$ LANGUAGE plpgsql;
-
-
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
---- Fonction support
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
----------------------------------------------------------------------------------------------------------
 
 
 ---------------------------------------------------------------------------------------------------------
