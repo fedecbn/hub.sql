@@ -517,6 +517,41 @@ END;$BODY$LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- Nom : hub_aggregate
+--- Description : Met à jour le schema agregation
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_aggregate(libSchema varchar, jdd varchar) RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE typJdd varchar;
+DECLARE libTable varchar;
+DECLARE ct integer;
+DECLARE ct2 integer;
+BEGIN
+--- Output&Log
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_aggregate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.user_log := current_user;
+--- variables
+CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN typJdd = jdd;
+ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 	
+END CASE;
+--- Commandes
+SELECT * INTO out FROM hub_clear_plus(libSchema,'agregation', jdd, 'propre', 'propre');
+FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
+	ct = ct+1;
+	SELECT * INTO out FROM hub_add(libSchema,'agregation', libTable, libTable , jdd, 'push_total'); 
+		CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
+END LOOP;
+--- Output&Log
+CASE 
+WHEN (ct = ct2) THEN out.lib_log := 'Partie propre CBN vide - jdd = '||jdd; out.nb_occurence := jdd; 
+WHEN (ct <> ct2) THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := jdd;
+ELSE END CASE;
+PERFORM hub_log (libSchema, out);RETURN NEXT out;
+END; $BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 --- Nom : hub_bilan
 --- Description : Met à jour le bilan sur les données disponibles dans un schema
 ---------------------------------------------------------------------------------------------------------
