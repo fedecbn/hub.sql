@@ -1695,17 +1695,20 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd JOIN ref.aa_meta ON libell
 ELSE END CASE;
 
 --- Test concernant la cohérence sur les dates
+
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
-	EXECUTE 'SELECT count(*) FROM "'||libSchema||'"."temp_releve" WHERE hub_verif_date(date_debut) IS FALSE OR hub_verif_date(date_fin) IS FALSE' INTO compte;
-	CASE WHEN compte = 0 THEN
-		EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date'  INTO compte;
+		compte:=0;
+		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM hub.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
+			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' and date_debut::date > date_fin::date;' into val;
+			CASE WHEN val is not null THEN compte:=compte +1;  ELSE END CASE;
+		END LOOP;
 		CASE WHEN (compte > 0) THEN
 			--- log
 			out.lib_table := 'releve'; out.lib_champ := 'date_debut'; out.lib_log := 'Valeur(s) non cohérente(s) => SELECT * FROM hub_verif_plus('''||libSchema||''',''releve'',''date_debut'',''coh_date'');'; out.nb_occurence := compte||' occurence(s)'; return next out;
 			out.lib_log := typJdd ||' : Valeur(s) non cohérente(s)';PERFORM hub_log (libSchema, out);
 		ELSE END CASE;
-	ELSE END CASE;
 ELSE END CASE;
+
 
 --- Test concernant la cohérence sur les taxon
 CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
@@ -1725,7 +1728,7 @@ CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
 FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE fk_table <> '''' AND typ_jdd = '''||typJdd||''' GROUP BY cd_table;' LOOP
 	FOR libChamp in EXECUTE 'SELECT cd_champ FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null GROUP BY cd_champ;' LOOP
 		FOR result IN EXECUTE 'SELECT cd_champ, fk_table FROM ref.fsd WHERE cd_table = '''||libTable||''' and fk_table is not null and cd_champ='''||libChamp||''' GROUP BY cd_champ, fk_table;' LOOP
-			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||result.col1||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||result.col1||' IS NULL and a.'||libChamp||' is not null;' INTO compte;
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||libTable||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||result.col1||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||result.col1||' IS NULL and (a.'||libChamp||' is not null or a.'||libChamp||'  <> '''') ;' INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
 				out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := 'Problème d intégrité: la table '''||libTable||''' a '||compte||' données qui n ont pas de champ '''||libChamp||''' correspondant dans la table '''||result.col2||'''   => SELECT * FROM hub_verif_plus('''||libSchema||''','''||libTable||','||result.col2||''','''||libChamp||''',''integrite'');'; 
@@ -1733,7 +1736,7 @@ FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE fk_table <> '''' AND
 				out.lib_log := typJdd ||' : Problème d intégrité';PERFORM hub_log (libSchema, out);
 			ELSE END CASE;
 
-			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' a LEFT JOIN '||libSchema||'.temp_'||libTable||'  z ON a.'||result.col1||' = z. '||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||libChamp||' IS NULL and a.'||result.col1||' is not null;' INTO compte;
+			EXECUTE 'SELECT count(*) FROM '||libSchema||'.temp_'||result.col2||' a LEFT JOIN '||libSchema||'.temp_'||libTable||'  z ON a.'||result.col1||' = z. '||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||libChamp||' IS NULL and (a.'||result.col1||' is not null or a.'||result.col1||'  <> '''');' INTO compte;
 			CASE WHEN (compte > 0) THEN
 				--- log
 				out.lib_table := result.col1; out.lib_champ := result.col2; out.lib_log := 'Problème d intégrité: la table '''||result.col2||''' a '||compte||' données qui n ont pas de champ '''||result.col1||''' correspondant dans la table  '''||libTable||'''  => SELECT * FROM hub_verif_plus('''||libSchema||''','''||result.col2||','||libTable||''','''||result.col1||''',''integrite'');'; 
@@ -1824,11 +1827,24 @@ CASE WHEN (typVerif = 'vocactrl' OR typVerif = 'all') THEN
 ELSE --- rien
 END CASE;
 
---- Test concernant le vocbulaire controlé
+--- Test concernant les dates
+/*
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
 	FOR champRefSelected IN EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE date_debut::date > date_fin::date  LIMIT '||limited||';' LOOP 
 	out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out; END LOOP;
 ELSE END CASE;
+*/
+
+
+CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
+		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM hub.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
+			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' and date_debut::date > date_fin::date;' into champRefSelected;
+				CASE WHEN champRefSelected is not null 
+				THEN out.lib_table := libTable; out.lib_champ := libChamp; out.lib_log := champRefSelected; out.nb_occurence := 'SELECT cd_releve, date_debut, date_fin FROM "'||libSchema||'"."temp_releve" WHERE cd_releve = '''||champRefSelected||''''; return next out;   
+				ELSE END CASE;
+		END LOOP;
+ELSE END CASE;
+
 
 --- Test concernant le vocbulaire controlé
 CASE WHEN (typVerif = 'coh_taxref_data' OR typVerif = 'all') THEN
@@ -1847,7 +1863,7 @@ CASE WHEN (typVerif = 'integrite' OR typVerif = 'all') THEN
 		
 			FOR result IN EXECUTE 'SELECT split_part('''||libTable||''','','',1) as table1,split_part('''||libTable||''','','',2) as table2;' LOOP
 					--- log
-					FOR champRefSelected IN EXECUTE 'SELECT a.'||libChamp||' FROM '||libSchema||'.temp_'||result.col1||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||libChamp||' IS NULL and a.'||libChamp||' is not null;' LOOP
+					FOR champRefSelected IN EXECUTE 'SELECT a.'||libChamp||' FROM '||libSchema||'.temp_'||result.col1||' a LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE  z.'||libChamp||' IS NULL and (a.'||libChamp||' is not null or a.'||libChamp||'  <> '''');' LOOP
 					out.lib_table := result.col1; out.lib_champ := libChamp; out.lib_log := champRefSelected; 
 					out.nb_occurence := 'SELECT a.*, z.'||libChamp||' as '||libChamp||'_jointure FROM "'||libSchema||'"."temp_'||result.col1||'" a  LEFT JOIN '||libSchema||'.temp_'||result.col2||' z ON a.'||libChamp||' = z.'||libChamp||' AND a.cd_jdd=z.cd_jdd WHERE a.'||libChamp||' = '''||champRefSelected||''''; return next out;
 					END LOOP;
