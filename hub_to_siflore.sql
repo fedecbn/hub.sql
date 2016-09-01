@@ -187,6 +187,9 @@ CREATE TABLE exploitation.stt_lr_reg_catnat(uid integer NOT NULL,cd_ref integer,
 CREATE TABLE exploitation.stt_lr_nat_catnat(uid integer NOT NULL,statuts_nat text,CONSTRAINT stt_lr_nat_catnat_pkey PRIMARY KEY (uid));
 --- Table : exploitation.suivi_maj_data
 CREATE TABLE exploitation.suivi_maj_data(cd_jdd varchar NOT NULL, date_maj timestamp,CONSTRAINT suivi_maj_data_pkey PRIMARY KEY (cd_jdd));
+-- Table: exploitation.list_convention_berne
+CREATE TABLE exploitation.convention_berne(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer,CONSTRAINT convention_berne_pkey PRIMARY KEY (cd_ref));
+INSERT INTO exploitation.convention_berne SELECT * FROM dblink('dbname=si_flore_national_v3','SELECT * FROM exploitation.convention_berne;') as t1(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer);
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
