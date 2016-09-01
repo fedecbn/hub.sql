@@ -187,7 +187,7 @@ CREATE TABLE exploitation.stt_lr_reg_catnat(uid integer NOT NULL,cd_ref integer,
 CREATE TABLE exploitation.stt_lr_nat_catnat(uid integer NOT NULL,statuts_nat text,CONSTRAINT stt_lr_nat_catnat_pkey PRIMARY KEY (uid));
 --- Table : exploitation.suivi_maj_data
 CREATE TABLE exploitation.suivi_maj_data(cd_jdd varchar NOT NULL, date_maj timestamp,CONSTRAINT suivi_maj_data_pkey PRIMARY KEY (cd_jdd));
--- Table: exploitation.list_convention_berne
+-- Table: exploitation.convention_berne
 CREATE TABLE exploitation.convention_berne(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer,CONSTRAINT convention_berne_pkey PRIMARY KEY (cd_ref));
 INSERT INTO exploitation.convention_berne SELECT * FROM dblink('dbname=si_flore_national_v3','SELECT * FROM exploitation.convention_berne;') as t1(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer);
 
@@ -304,45 +304,33 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_ref_refresh(typ varchar = 'all') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_ref_refresh(typ varchar = 'all', version integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE version varchar;
 DECLARE flag integer;
 BEGIN
 --- Variable
-version = '7';
+--version = '7';
 flag = 0;
 
 --- Commande
 /*Mise à jour de la table taxref*/
-CASE WHEN typ = 'taxref' OR typ = 'all' THEN
+CASE WHEN (typ = 'taxref' OR typ = 'all') THEN
 EXECUTE '
 TRUNCATE exploitation.taxref_new;
 INSERT INTO exploitation.taxref_new(cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat)
 SELECT cd_ref::integer, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup::integer, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat
-FROM ref.taxref_v'||version||'
-WHERE (regne = ''Plantae'' OR  regne = ''Fungi'' OR regne = ''Chromista'') AND cd_nom = cd_ref
-GROUP BY cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat;
+	FROM ref.taxref_v'||version||'
+	WHERE cd_nom = cd_ref
+	GROUP BY cd_ref, nom_complet, regne, phylum, classe, ordre, famille, cd_taxsup, rang, lb_nom, lb_auteur, nom_vern, nom_vern_eng, habitat;
 ';
 UPDATE exploitation.taxref_new i SET cd_taxsup2 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_new) as out WHERE out.cd_ref = i.cd_taxsup;  --- taxsup2
 UPDATE exploitation.taxref_new i SET cd_taxsup3 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_new) as out WHERE out.cd_ref = i.cd_taxsup2; --- taxsup3
 UPDATE exploitation.taxref_new i SET cd_taxsup4 = out.cd_taxsup FROM (SELECT cd_ref, cd_taxsup FROM exploitation.taxref_new) as out WHERE out.cd_ref = i.cd_taxsup3; --- taxsup4
-UPDATE exploitation.taxref_new SET liste_bryo = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE liste_bryo IS TRUE GROUP BY famille, liste_bryo); /*Bryophyta et liste bryo*/
-UPDATE exploitation.taxref_new SET bryophyta = TRUE WHERE famille in (SELECT famille FROM exploitation.taxref_v5_new WHERE bryophyta IS TRUE GROUP BY famille, bryophyta);
+UPDATE exploitation.taxref_new SET liste_bryo = TRUE WHERE cd_ref in (SELECT cd_ref FROM exploitation.convention_berne); /*Bryophyte de la convention de berne*/
+EXECUTE 'UPDATE exploitation.taxref_new SET bryophyta = TRUE WHERE cd_ref in (SELECT cd_ref::integer FROM ref.taxref_v'||version||' WHERE group1_inpn = ''Bryophytes'' GROUP BY cd_ref);'; /*Les bryophytes*/
 flag = 1;
 ELSE END CASE;
-
-
----- ARCHIVE
-/*
---- exploitation.taxons
-TRUNCATE exploitation.taxons;
-INSERT INTO exploitation.taxons SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons') as t1(cd_ref integer , nom_complet character varying,  rang character varying, type character varying);
---- exploitation.taxon_commune
-TRUNCATE exploitation.taxons_communs; 
-INSERT INTO exploitation.taxons_communs SELECT * FROM dblink('dbname =si_flore_national_v3','SELECT * FROM exploitation.taxons_communs') as t1(cd_ref integer , nom_complet character varying,  taxons_communs_ss_inf character varying, taxons_communs_av_inf character varying);
-*/
 
 
 --- Log
