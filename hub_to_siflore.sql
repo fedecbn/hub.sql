@@ -274,20 +274,21 @@ DECLARE out zz_log%rowtype;
 DECLARE listVersion varchar;
 BEGIN
 /*Fonction*/
-EXECUTE 'CREATE TABLE IF NOT EXISTS exploitation.taxref_no_change_'||version||' (version integer,cd_ref integer,nom_valide varchar,CONSTRAINT taxref_no_change_'||version||'_pk PRIMARY KEY (version,cd_ref));';
+DROP TABLE IF EXISTS exploitation.taxref_no_change;
+CREATE TABLE exploitation.taxref_no_change(version integer,cd_ref integer,nom_valide varchar,CONSTRAINT taxref_no_change_pk PRIMARY KEY (version,cd_ref));
 
 FOR listVersion IN 2..9 LOOP
-	EXECUTE 'INSERT INTO exploitation.taxref_no_change_'||version||' 
+	EXECUTE 'INSERT INTO exploitation.taxref_no_change
 	SELECT '''||listVersion||''' as version, a.cd_ref::integer, a.nom_valide 
 	FROM ref.taxref_v'||listVersion||'  a
 	JOIN ref.taxref_v'||version||' z ON 
-	a.regne = z.regne AND a.phylum = z.phylum AND a.classe = z.classe AND a.ordre = z.ordre AND a.famille = z.famille AND a.cd_nom = z.cd_nom AND a.cd_ref = z.cd_ref AND a.rang = z.rang 
+	a.regne = z.regne AND a.classe = z.classe AND a.ordre = z.ordre AND a.famille = z.famille AND a.cd_nom = z.cd_nom AND a.cd_ref = z.cd_ref AND a.rang = z.rang 
 	AND a.lb_nom = z.lb_nom AND a.lb_auteur = z.lb_auteur AND a.nom_complet = z.nom_complet AND a.nom_valide = z.nom_valide
 	GROUP BY a.cd_ref,a.nom_valide
 	;';
 END LOOP;
 --- Log
-out.lib_log := 'exploitation.taxref_no_change'||version||' créé';
+out.lib_log := 'exploitation.taxref_no_change créé pour taxref_v'||version;
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_taxref_no_change';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('hub', out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
@@ -547,7 +548,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_insert() RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_insert(version integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE jdd threecol%rowtype;
@@ -572,6 +573,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'com'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
@@ -592,6 +594,7 @@ CASE WHEN ct <> 0 THEN
 	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'com'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
@@ -618,6 +621,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'm10'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
@@ -639,6 +643,7 @@ INSERT INTO exploitation.obs_maille_fr10
 	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'm10'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
@@ -664,6 +669,7 @@ SELECT count(*) INTO ct FROM hub.observation as obs
 	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'm5'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
@@ -684,6 +690,7 @@ INSERT INTO exploitation.obs_maille_fr5
 	JOIN ref.voca_ctrl tso ON tso.cd_champ = 'typ_source' AND tso.code_valeur = typ_source
 	JOIN ref.voca_ctrl cfg ON cfg.cd_champ = 'confiance_geo' AND cfg.code_valeur = confiance_geo
 	JOIN ref.voca_ctrl mog ON mog.cd_champ = 'moyen_geo' AND mog.code_valeur = moyen_geo
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'm5'
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
@@ -710,7 +717,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_insert_reunion() RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_insert_reunion(version integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE jdd threecol%rowtype;
@@ -771,6 +778,7 @@ INSERT INTO observation_reunion.observation_taxon_reunion
 	JOIN hub.releve rel ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve
 	JOIN hub.metadonnees meta ON meta.cd_jdd = obs.cd_jdd
 	JOIN ref.voca_ctrl prp ON prp.cd_champ = 'propriete_obs' AND prp.code_valeur = propriete_obs
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 ELSE 	out.lib_log := 'Aucune commune transférée';out.nb_occurence := '0';PERFORM hub_log ('hub', out); RETURN next out;
@@ -780,6 +788,7 @@ END CASE;
 --- Les communes
 SELECT count(*) INTO ct FROM hub.observation obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'com_reu'
 	AND cd_validite = 1;
 -- intégration	
@@ -788,6 +797,7 @@ INSERT INTO observation_reunion.observation_commune_reunion (id_flore_fcbn, code
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as code_insee, confiance_geo as type_localisation_commune, moyen_geo as type_rattachement_commune, ter.rmq as remarque_lieu, cd_refgeo as referentiel_communal, null as departement
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'com_reu'
 	AND cd_validite = 1;
 	out.lib_log := 'communes transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
@@ -797,6 +807,7 @@ END CASE;
 --- Les maille10
 SELECT count(*) INTO ct FROM hub.observation obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'utm10'
 	AND cd_validite = 1;
 -- intégration	
@@ -805,6 +816,7 @@ INSERT INTO observation_reunion.observation_maille_utm10 (id_flore_fcbn, cd_sig,
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as cd_sig, confiance_geo as type_localisation_maille_utm10, moyen_geo as type_rattachement_maille_utml0, ter.rmq as remarque_lieu
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'utm10'
 	AND cd_validite = 1;
 	out.lib_log := 'Maille10 transférées';out.nb_occurence := ct||' occurence(s)';RETURN next out;PERFORM hub_log ('hub', out);
@@ -814,6 +826,7 @@ END CASE;
 --- Les maille utm1
 SELECT count(*) INTO ct FROM hub.observation obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'utm1'
 	AND cd_validite = 1;
 -- intégration	
@@ -822,6 +835,7 @@ INSERT INTO observation_reunion.observation_maille_utm1 (id_flore_fcbn, nom_mail
 	SELECT obs.cd_jdd||'_'||cd_obs_mere as id_flore_fcbn, cd_geo as nom_maille, confiance_geo as type_localisation_maille_utm1, 	moyen_geo as type_rattachement_maille_utml, ter.rmq as remarque_lieu
 	FROM hub.observation as obs
 	JOIN hub.releve_territoire ter ON obs.cd_jdd = ter.cd_jdd AND obs.cd_releve = ter.cd_releve
+	JOIN exploitation.taxref_no_change tnc ON obs.cd_ref::integer =  tnc.cd_ref AND obs.version_reftaxo::integer =  tnc.version
 	WHERE typ_geo = 'utm1'
 	AND cd_validite = 1;
 	out.lib_log := 'Maille1 transférées';		out.nb_occurence := ct||' occurence(s)'; 	RETURN next out;PERFORM hub_log ('hub', out);
@@ -907,7 +921,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_data_refresh(libSchema varchar, jdd varchar = 'data') RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_data_refresh(libSchema varchar, jdd varchar = 'data', version integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
@@ -936,9 +950,9 @@ END CASE;
 
 /*Insertion des données dans les tables SI FLORE*/
 CASE WHEN libSchema = 'mas' THEN
-	SELECT * INTO out FROM siflore_insert_reunion(); RETURN next out;
+	SELECT * INTO out FROM siflore_insert_reunion(version); RETURN next out;
 ELSE
-	SELECT * INTO out FROM siflore_insert(); RETURN next out;
+	SELECT * INTO out FROM siflore_insert(version); RETURN next out;
 END CASE;
 
 
