@@ -36,9 +36,6 @@
 --- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', [trigramme_cbn], 'hub');
 
 
-
-
-
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
 -------------------------------------------------------------------------------------------------------
@@ -959,36 +956,55 @@ CASE WHEN format = 'fcbn' THEN
 WHEN format = 'sinp' THEN
 	--- TABLE SujetObservation
 	EXECUTE 'COPY (SELECT
-		cd_obs_perm 			as "identifiantPermanent",
-		''Présent'' 			as "statutObservation",
-		nom_ent_mere 			as "nomCite",
-		null 				as "objetGeo",
-		date_debut 			as "dateDebut",
-		date_fin			as "dateFin",
-		null 				as "altitudeMin",
-		null 				as "altitudeMax",
-		null 				as "profondeurMin",
-		null				as "profondeurMax",
-		null 				as "habitat",
-		null				as "denombrement",
-		string_agg(nom_acteur,'', '') 	as "observateur",
-		cd_nom				as "cdNom",
-		cd_ref				as "cdRef",
-		version_reftaxo			as "versionTAXREF",
-		null 				as "determinateur",
-		null 				as dateDetermination,
-		null				as "validateur",
-		string_agg(lib_orgm,'', '')	as "organismeStandard",
-		a.rmq 				as "commentaire"
+		a.cd_jdd||''-''||cd_obs_mere 	as "cleObs",
+		a.cd_jdd||''-''||a.cd_releve	as "cleGrp",
+		cd_obs_perm		as "identifiantPermanent",
+		''Présent'' 		as "statutObservation",
+		nom_ent_mere 		as "nomCite",
+		null 			as "objetGeo",
+		date_debut 		as "dateDebut",
+		date_fin		as "dateFin",
+		null 			as "altitudeMin",
+		null 			as "altitudeMax",
+		null 			as "habitat",
+		null 			as "profondeurMin",
+		null			as "profondeurMax",
+		denombt_min		as "denbrMin",
+		denombt_max		as "denbrMax",
+		objet_denombt		as "objDenbr",
+		null			as "denombrement",
+		observateur.nom		as "identiteObs",
+		null			as "mailObs",
+		organisme_obs.nom	as "organismeObs",
+		null			as "profondeurMoyenne",
+		cd_nom			as "cdNom",
+		cd_ref			as "cdRef",
+		version_reftaxo		as "versionTAXREF",
+		determinateur.nom 	as "identiteDet",
+		null			as "mailDet",
+		organisme_det.nom	as "organismeDet",
+		null 			as dateDetermination,
+		validateur.nom		as "IdentiteVal",
+		null			as "mailVal",
+		organisme_val.nom	as "organismeVal",
+		organisme_sat.nom	as "organismeStandard",
+		a.rmq 			as "commentaire"
 		FROM '||libSchema||'.observation a
 		JOIN '||libSchema||'.releve z ON a.cd_releve = z.cd_releve AND a.cd_jdd = z.cd_jdd
-		JOIN '||libSchema||'.releve_acteur e ON a.cd_releve = e.cd_releve  AND a.cd_jdd = e.cd_jdd
-		GROUP BY cd_obs_perm,nom_ent_mere,date_debut,date_fin,cd_nom,cd_ref,version_reftaxo,a.rmq
-	) TO '''||path||'SujetObservation.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+		LEFT JOIN (SELECT cd_jdd||''-''||cd_releve as id, string_agg(nom_acteur,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''obs'' GROUP BY cd_jdd,cd_releve) as observateur ON observateur.id = a.cd_jdd||''-''||a.cd_releve
+		LEFT JOIN (SELECT cd_jdd||''-''||cd_releve as id, string_agg(lib_orgm,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''obs'' GROUP BY cd_jdd,cd_releve) as organisme_obs ON organisme_obs.id = a.cd_jdd||''-''||a.cd_releve
+		LEFT JOIN (SELECT cd_jdd||''-''||cd_releve as id, string_agg(nom_acteur,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''det'' GROUP BY cd_jdd,cd_releve) as determinateur ON determinateur.id = a.cd_jdd||''-''||a.cd_releve
+		LEFT JOIN (SELECT cd_jdd||''-''||cd_releve as id, string_agg(lib_orgm,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''det'' GROUP BY cd_jdd,cd_releve) as organisme_det ON organisme_det.id = a.cd_jdd||''-''||a.cd_releve
+		LEFT JOIN (SELECT cd_jdd||''-''||cd_releve as id, string_agg(nom_acteur,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''val'' GROUP BY cd_jdd,cd_releve) as validateur ON validateur.id = a.cd_jdd||''-''||a.cd_releve
+		LEFT JOIN (SELECT cd_jdd||''-''||cd_releve as id, string_agg(lib_orgm,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''val'' GROUP BY cd_jdd,cd_releve) as organisme_val ON organisme_val.id = a.cd_jdd||''-''||a.cd_releve
+		LEFT JOIN (SELECT cd_jdd as id, string_agg(DISTINCT lib_orgm,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''sta'' GROUP BY cd_jdd) as organisme_sat ON organisme_sat.id = a.cd_jdd
+		GROUP BY a.cd_jdd,a.cd_releve,a.cd_obs_mere,cd_obs_perm,nom_ent_mere,date_debut,date_fin,cd_nom,cd_ref,version_reftaxo,a.rmq,denombt_min,denombt_max,objet_denombt,observateur.nom,organisme_obs.nom,determinateur.nom,organisme_det.nom,validateur.nom,organisme_val.nom,organisme_sat.nom
+	) TO '''||path||'/sinp_SujetObservation.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 
 	--- TABLE Source
 	EXECUTE 'COPY (SELECT
-		cd_obs_perm 		as "identifiantPermanent",
+		a.cd_jdd||''-''||cd_obs_mere 	as "cleObs",
+		a.cd_jdd||''-''||a.cd_releve	as "cleGrp",
 		cd_obs_mere 		as "identifiantOrigine",
 		propriete_obs 		as "dSPublique",
 		cd_sensi 		as "diffusionNiveauPrecision",
@@ -1006,39 +1022,61 @@ WHEN format = 'sinp' THEN
 		lib_orgm 		as "organismeGestionnaireDonnee",
 		null 			as "codeIDCNPDispositif",
 		current_date 		as "dEEDateTransformation",
-		current_date 		as dEEDateDerniereModification,
+		current_date 		as "dEEDateDerniereModification",
 		lib_biblio 		as "referenceBiblio",
-		null 			as "orgTransformation"
+		organisme_tra.nom	as "orgTransformation"
 		FROM '||libSchema||'.observation a
 		JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd
-		--WHERE typ_acteur = ''ges''
-		GROUP BY cd_obs_perm,cd_obs_mere,propriete_obs,cd_sensi,lib_refsensi,version_refsensi,typ_source,
-		a.cd_jdd,cd_jdd_orig,a.cd_jdd_perm,lib_orgm,current_date,lib_biblio
-	) TO '''||path||'Source.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+		LEFT JOIN (SELECT cd_jdd as id, string_agg(DISTINCT lib_orgm,'', '') as "nom" FROM '||libSchema||'.releve_acteur WHERE typ_acteur = ''tra'' GROUP BY cd_jdd) as organisme_tra ON organisme_tra.id = a.cd_jdd
+		GROUP BY a.cd_jdd, a.cd_releve,cd_obs_perm,cd_obs_mere,propriete_obs,cd_sensi,lib_refsensi,version_refsensi,typ_source,
+		a.cd_jdd,cd_jdd_orig,a.cd_jdd_perm,lib_orgm,current_date,lib_biblio,organisme_tra.nom
+	) TO '''||path||'sinp_Source.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+
+	--- TABLE Regroupement
+	EXECUTE 'COPY (SELECT
+		a.cd_jdd||''-''||a.cd_releve	as "cleGrp",
+		a.cd_releve_perm 		as "identifiantPermanent",
+		CASE WHEN meth_releve IS NOT NULL AND typ_protocole IS NOT NULL THEN ''méthode = ''||meth_rel.libelle_valeur||'' - protocole = ''||typ_prot.libelle_valeur 
+			WHEN meth_releve IS NULL AND typ_protocole IS NOT NULL THEN '' protocole = ''||typ_prot.libelle_valeur 
+			WHEN meth_releve IS NOT NULL AND typ_protocole IS NULL THEN ''méthode = ''||meth_rel.libelle_valeur
+			ELSE ''pas de description''
+			END as "methodeRegroupement",
+		CASE WHEN typ_protocole = ''st'' THEN ''INVSTA''
+			WHEN meth_releve = ''lp'' OR meth_releve = ''lf'' OR meth_releve = ''lv'' THEN ''REL''
+			ELSE ''OBS''
+			END as "methodeRegroupement"
+		FROM '||libSchema||'.releve a
+		LEFT JOIN ref.voca_ctrl meth_rel ON meth_rel.cd_champ = ''meth_releve'' AND a.meth_releve = meth_rel.code_valeur
+		LEFT JOIN ref.voca_ctrl typ_prot ON typ_prot.cd_champ = ''typ_protocole'' AND a.typ_protocole = typ_prot.code_valeur
+	) TO '''||path||'sinp_Regroupement.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';	
 	
 	--- TABLE Maille10x10
 	EXECUTE 'COPY (SELECT
-		cd_obs_perm 		as "identifiantPermanent",
-		cd_geo 			as "codeMaille",
-		version_refgeo 		as "versionRef",
-		cd_refgeo 		as "nomRef",
-		origine_geo 		as "typeInfoGeo"
+		a.cd_jdd||''-''||cd_obs_mere 	as "cleObs",
+		a.cd_jdd||''-''||a.cd_releve	as "cleGrp",
+		cd_obs_perm 			as "identifiantPermanent",
+		cd_geo 				as "codeMaille",
+		version_refgeo 			as "versionRef",
+		cd_refgeo 			as "nomRef",
+		origine_geo 			as "typeInfoGeo"
 		FROM '||libSchema||'.releve_territoire a
 		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jdd = z.cd_jdd
 		WHERE typ_geo = ''m10''
-	) TO '''||path||'Maille10x10.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	) TO '''||path||'sinp_Maille10x10.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 
 	--- TABLE Commune
 	EXECUTE 'COPY (SELECT
-		cd_obs_perm 		as "identifiantPermanent",
-		cd_geo 			as "codeMaille",
-		version_refgeo 		as "versionRef",
-		cd_refgeo 		as "nomRef",
-		origine_geo 		as "typeInfoGeo"
+		a.cd_jdd||''-''||cd_obs_mere 	as "cleObs",
+		a.cd_jdd||''-''||a.cd_releve	as "cleGrp",
+		cd_obs_perm 			as "identifiantPermanent",
+		cd_geo 				as "codeMaille",
+		version_refgeo 			as "versionRef",
+		cd_refgeo 			as "nomRef",
+		origine_geo 			as "typeInfoGeo"
 		FROM '||libSchema||'.releve_territoire a
 		JOIN '||libSchema||'.observation z ON a.cd_releve = z.cd_releve AND a.cd_jdd = z.cd_jdd
 		WHERE typ_geo = ''com''
-	) TO '''||path||'Commune.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
+	) TO '''||path||'sinp_Commune.csv'' HEADER CSV DELIMITER '';'' ENCODING ''UTF8'';';
 	
 	out.lib_log :=  'export au format SINP';
 WHEN format = 'list_taxon' THEN
