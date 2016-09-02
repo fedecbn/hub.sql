@@ -1437,6 +1437,49 @@ END LOOP;
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_truncate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'prefixe = '||prefixe;PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_stat
+--- Description : Produit des stats bilan sur les données d'un schema
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_stat(libSchema varchar = 'agregation', typ varchar = 'all', chemin varchar = '/home/hub/agregation/stat/') RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE cmd varchar;
+DECLARE prefixe varchar;
+DECLARE sstyp varchar;
+BEGIN
+--- Variables 
+out.lib_schema := libSchema;out.lib_table := '-'; out.lib_champ := '-'; out.typ_log := 'hub_stat';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.nb_occurence := '-';
+out.lib_log := '';
+prefixe := 'hub_stat_';
+--- Commandes
+/*NB : temps de réalisation lors du dernier bilan = 2180 sec*/
+/*Bilan des taxons par organisme*/
+CASE WHEN (typ = 'taxon' OR typ = 'all') THEN
+	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_ent_mere) FROM '||libSchema||'.entite a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
+	sstyp = 'taxon'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+ELSE END CASE;
+
+/*Bilan des observations par organisme*/
+CASE WHEN (typ = 'observation' OR typ = 'all') THEN
+	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_obs_mere) FROM '||libSchema||'.observation a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
+	sstyp = 'observation'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+ELSE END CASE;
+
+/*Bilan des relevé par organisme*/
+CASE WHEN (typ = 'releve' OR typ = 'all') THEN
+	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_releve) FROM '||libSchema||'.releve a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
+	sstyp = 'observation'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+ELSE END CASE;
+
+--- Output&Log
+CASE WHEN out.lib_log = '' THEN out.lib_log = 'typ mal renseigné';PERFORM hub_log (libSchema, out);RETURN NEXT out; ELSE END CASE;
+END; $BODY$ LANGUAGE plpgsql;
+
+-- SELECT * FROM hub_stat('hub');
+
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
@@ -2133,6 +2176,21 @@ CASE WHEN ct = ct2 AND typAction = 'del' THEN out.lib_log := 'Aucun point commun
 	ELSE SELECT 1 INTO  nothing; END CASE;
 PERFORM hub_log (libSchema, out);RETURN NEXT out; 
 END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_file
+--- Description : exporte un resultat dans un fichier
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_file(chemin varchar, nom varchar, cmd varchar) RETURNS varchar  AS 
+$BODY$
+DECLARE fichier varchar;
+BEGIN
+fichier = chemin||nom||'.csv';
+EXECUTE 'COPY ('||cmd||') TO '''||fichier||''' CSV HEADER ENCODING ''UTF-8'' DELIMITER E'';''';
+RETURN 'out = '||fichier;
+END; $BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
