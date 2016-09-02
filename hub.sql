@@ -2210,8 +2210,8 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_log_simple (libSchema varchar, fction varchar, logs varchar) RETURNS void AS 
 $BODY$ 
 BEGIN
-EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||current_date||''','''||current_user||''');';
-CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||current_date||''','''||current_user||''');'; ELSE END CASE;
+EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||CURRENT_TIMESTAMP||''','''||current_user||''');';
+CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||CURRENT_TIMESTAMP||''','''||current_user||''');'; ELSE END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
