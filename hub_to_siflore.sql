@@ -951,3 +951,50 @@ END CASE;
 out.lib_schema := 'hub';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_data_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.lib_log = 'mise à jour OK : '||libSchema; 
 PERFORM hub_log ('hub', out); RETURN next out;
 END; $BODY$ LANGUAGE plpgsql;
+
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : siflore_stat
+--- Description : Produit des stats bilan sur les données d'un schema
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION siflore_stat(typ varchar = 'all', chemin varchar = '/home/export_pgsql/siflore/') RETURNS setof zz_log  AS 
+$BODY$
+DECLARE out zz_log%rowtype;
+DECLARE cmd varchar;
+DECLARE prefixe varchar;
+DECLARE sstyp varchar;
+BEGIN
+--- Variables 
+out.lib_schema := libSchema;out.lib_table := '-'; out.lib_champ := '-'; out.typ_log := 'siflore_stat';SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;out.nb_occurence := '-';
+out.lib_log := '';
+prefixe := 'siflore_stat_';
+--- Commandes
+
+/*Problèmes de rattachement*/
+CASE WHEN (typ = 'pb_rattachement_geo' OR typ = 'all') THEN
+	cmd = 'SELECT bd_mere, ''pas de maille 10'' as pb, count(*) FROM observation.observation_taxon obs where obs.id_flore_fcbn not in (SELECT distinct id_flore_fcbn from observation.observation_maille_fr10) group by bd_mere ;
+		UNION
+		SELECT bd_mere, ''pas de maille 5'' as pb, count(*) FROM observation.observation_taxon obs where obs.id_flore_fcbn not in (SELECT distinct id_flore_fcbn from observation.observation_maille_fr5) group by bd_mere ;
+		UNION
+		SELECT bd_mere, ''pas de commune'' as pb, count(*) FROM observation.observation_taxon obs where obs.id_flore_fcbn  not in (SELECT distinct id_flore_fcbn from observation.observation_commune) group by bd_mere ;
+		';
+	sstyp = 'pb_rattachement_geo'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log; RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+ELSE END CASE;
+
+/*nombre totale d'observation*/
+CASE WHEN (typ = 'observation_total' OR typ = 'all') THEN
+	cmd = 'SELECT bd_mere, count(*) as nb FROM observation_taxon GROUP BY bd_mere';
+	sstyp = 'observation_total'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log; RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+ELSE END CASE;
+
+/*nombre total de taxons*/
+CASE WHEN (typ = 'releve' OR typ = 'all') THEN
+	cmd = 'SELECT count(distinct cd_ref) FROM observation.observation_taxon GROUP BY bd_mere';
+	sstyp = 'releve'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log; RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+ELSE END CASE;
+
+--- Output&Log
+CASE WHEN out.lib_log = '' THEN out.lib_log = 'typ mal renseigné';PERFORM hub_log (libSchema, out);RETURN NEXT out; ELSE END CASE;
+END; $BODY$ LANGUAGE plpgsql;
