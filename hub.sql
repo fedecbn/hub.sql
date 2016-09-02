@@ -1458,20 +1458,20 @@ prefixe := 'hub_stat_';
 /*NB : temps de réalisation lors du dernier bilan = 2180 sec*/
 /*Bilan des taxons par organisme*/
 CASE WHEN (typ = 'taxon' OR typ = 'all') THEN
-	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_ent_mere) FROM '||libSchema||'.entite a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
+	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_ent_mere) as nb_taxon FROM '||libSchema||'.entite a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
 	sstyp = 'taxon'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
 ELSE END CASE;
 
 /*Bilan des observations par organisme*/
 CASE WHEN (typ = 'observation' OR typ = 'all') THEN
-	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_obs_mere) FROM '||libSchema||'.observation a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
+	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_obs_mere) as nb_obs FROM '||libSchema||'.observation a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
 	sstyp = 'observation'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
 ELSE END CASE;
 
 /*Bilan des relevé par organisme*/
 CASE WHEN (typ = 'releve' OR typ = 'all') THEN
-	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_releve) FROM '||libSchema||'.releve a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
-	sstyp = 'observation'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
+	cmd = 'SELECT z.lib_orgm, count(DISTINCT cd_releve) as nb_releve FROM '||libSchema||'.releve a JOIN '||libSchema||'.metadonnees_acteur z ON a.cd_jdd = z.cd_jdd GROUP BY z.lib_orgm ORDER BY z.lib_orgm';
+	sstyp = 'releve'; SELECT * FROM hub_file(chemin, prefixe||sstyp, cmd) INTO out.lib_log;	RETURN NEXT OUT;PERFORM hub_log (libSchema, out);
 ELSE END CASE;
 
 --- Output&Log
