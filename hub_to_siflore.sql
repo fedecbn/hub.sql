@@ -8,7 +8,7 @@
 -- SELECT * FROM siflore_clone();
 
 --- 2. Création d'un hub pour récupérer les données
--- SELECT * FROM hub_simple_connect_ref('all');
+-- SELECT * FROM hub_connect_simple_ref('all');
 -- SELECT * FROM hub_admin_clone('hub');
 
 --- 3. Création/mise à jour des référentiels utilisés (table taxref_new )
@@ -924,7 +924,7 @@ connction = 'dbname=si_flore_national port=5433';
 --- Commande
 -- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données provenant du schéma du CBN choisi (tables propres) dans le HUB FCBN
 SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
-EXECUTE 'SELECT * FROM hub_simple_connect('''||connction||''', '''||jdd||''', '''||libSchema||''', ''hub'');' into out; RETURN next out;
+EXECUTE 'SELECT * FROM hub_connect_simple('''||jdd||''', '''||libSchema||''', ''hub'', '''||connction||''');' into out; RETURN next out;
 
 /*problèmes code maille*/
 --UPDATE hub.releve_territoire SET cd_geo = '10kmL93'||cd_geo WHERE typ_geo = 'm10' AND cd_geo NOT LIKE '10kmL93%';
