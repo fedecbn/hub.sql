@@ -518,32 +518,67 @@ END;$BODY$LANGUAGE plpgsql;
 --- Description : Met à jour le schema agregation
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_aggregate(libSchema varchar, jdd varchar) RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_aggregate(libSchema varchar = 'all', jdd varchar = 'all') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE typJdd varchar;
 DECLARE libTable varchar;
+DECLARE lschema varchar;
+DECLARE wher varchar;
 DECLARE ct integer;
 DECLARE ct2 integer;
 BEGIN
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_aggregate';out.nb_occurence := '-'; SELECT CURRENT_TIMESTAMP INTO out.date_log; out.user_log := current_user;
 --- variables
-CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN typJdd = jdd;
-ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; 	
+CASE WHEN jdd = 'data' OR jdd = 'taxa' 
+	THEN typJdd = jdd; wher = 'WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta''';
+WHEN jdd = 'all' 
+	THEN typJdd = jdd; wher = ''; 
+ELSE EXECUTE 'SELECT typ_jdd FROM "'||libSchema||'".metadonnees WHERE cd_jdd = '''||jdd||''';' INTO typJdd; wher = 'WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta''';
 END CASE;
 --- Commandes
-SELECT * INTO out FROM hub_clear_plus(libSchema,'agregation', jdd, 'propre', 'propre');
-FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' OR typ_jdd = ''meta'' GROUP BY cd_table' LOOP
-	ct = ct+1;
-	SELECT * INTO out FROM hub_add(libSchema,'agregation', libTable, libTable , jdd, 'push_total'); 
-		CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
-END LOOP;
+CASE WHEN (jdd = 'all' AND libSchema = 'all') THEN
+	SELECT * INTO out FROM hub_truncate('agregation', 'propre');	
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd '||wher||' GROUP BY cd_table' LOOP
+		FOR lschema IN SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('agregation','ref','public','ref','information_schema') AND schema_name NOT LIKE 'pg_%' ORDER BY schema_name LOOP
+			ct = ct+1;
+			SELECT * INTO out FROM hub_add(lschema,'agregation', libTable, libTable , jdd, 'push_total'); 
+				CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (lschema, out); ELSE ct2 = ct2+1; END CASE;
+		END LOOP;
+	END LOOP;	
+ WHEN jdd = 'all' THEN
+	SELECT * INTO out FROM hub_clear_plus(libSchema,'agregation', 'data', 'propre', 'propre');
+	SELECT * INTO out FROM hub_clear_plus(libSchema,'agregation', 'taxa', 'propre', 'propre');
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd '||wher||' GROUP BY cd_table' LOOP
+		ct = ct+1;
+		SELECT * INTO out FROM hub_add(libSchema,'agregation', libTable, libTable , 'data', 'push_total'); 
+		SELECT * INTO out FROM hub_add(libSchema,'agregation', libTable, libTable , 'taxa', 'push_total'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
+	END LOOP;
+WHEN libSchema = 'all' THEN
+	EXECUTE 'SELECT *  FROM hub_clear(''agregation'', '''||typJdd||''', ''propre'');' INTO out;
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd '||wher||' GROUP BY cd_table' LOOP
+		FOR lschema IN SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('agregation','ref','public','ref','information_schema') AND schema_name NOT LIKE 'pg_%' ORDER BY schema_name LOOP
+			ct = ct+1;
+			SELECT * INTO out FROM hub_add(lschema,'agregation', libTable, libTable , jdd, 'push_total'); 
+				CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (lschema, out); ELSE ct2 = ct2+1; END CASE;
+		END LOOP;
+	END LOOP;	
+ ELSE
+	SELECT * INTO out FROM hub_clear_plus(libSchema,'agregation', jdd, 'propre', 'propre');
+	FOR libTable IN EXECUTE 'SELECT cd_table FROM ref.fsd '||wher||' GROUP BY cd_table' LOOP
+		ct = ct+1;
+		SELECT * INTO out FROM hub_add(libSchema,'agregation', libTable, libTable , jdd, 'push_total'); 
+			CASE WHEN out.nb_occurence <> '-' THEN RETURN NEXT out; PERFORM hub_log (libSchema, out); ELSE ct2 = ct2+1; END CASE;
+	END LOOP;
+END CASE;
 --- Output&Log
 CASE 
-WHEN (ct = ct2) THEN out.lib_log := 'Partie propre CBN vide - jdd = '||jdd; out.nb_occurence := jdd; 
-WHEN (ct <> ct2) THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := jdd;
+	WHEN (ct = ct2) THEN out.lib_log := 'Partie propre CBN vide - jdd = '||jdd; out.nb_occurence := jdd; 
+	WHEN (ct <> ct2) THEN out.lib_log := 'Données poussées - jdd = '||jdd; out.nb_occurence := jdd;
 ELSE END CASE;
+CASE WHEN libSchema = 'all' THEN  libSchema = 'public'; ELSE END CASE;
 PERFORM hub_log (libSchema, out);RETURN NEXT out;
 END; $BODY$ LANGUAGE plpgsql;
 
