@@ -1710,8 +1710,8 @@ ELSE END CASE;
 
 CASE WHEN (typVerif = 'coh_date' OR typVerif = 'all') THEN
 		compte:=0;
-		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM hub.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
-			EXECUTE 'SELECT cd_releve FROM hub.temp_releve WHERE cd_releve='''||libChamp||''' AND ((date_debut::date > now() OR  date_fin::date > now()) or date_debut::date > date_fin::date) ;' into val;
+		for libChamp in EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve where cd_releve IN (SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE hub_verif_date(date_debut) IS TRUE AND hub_verif_date(date_fin) IS TRUE);' LOOP
+			EXECUTE 'SELECT cd_releve FROM '||libSchema||'.temp_releve WHERE cd_releve='''||libChamp||''' AND ((date_debut::date > now() OR  date_fin::date > now()) or date_debut::date > date_fin::date) ;' into val;
 			CASE WHEN val is not null THEN compte:=compte +1;  ELSE END CASE;
 		END LOOP;
 		CASE WHEN (compte > 0) THEN
