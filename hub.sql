@@ -99,9 +99,12 @@ FOREACH fonction IN ARRAY listFunction LOOP
 	ELSE END CASE;
 END LOOP;
 
--- emailing queue - pour la fonction de notification (=> utilisatin d'un cron)
+-- emailing queue - pour la fonction de notification (=> utilisation d'un cron)
 CREATE TABLE IF NOT EXISTS public.emailing_queue (lib_schema character varying,action character varying,date_log timestamp,user_log varchar);
 GRANT SELECT, INSERT ON TABLE public.emailing_queue TO public;
+-- publicating queue - pour la fonction de hub_to_siflore (=> utilisation d'un cron)
+CREATE TABLE IF NOT EXISTS public.publicating_queue (lib_schema character varying,jdd varchar, version integer);
+GRANT SELECT, INSERT ON TABLE public.publicating_queue TO public;
 
 END;$BODY$ LANGUAGE plpgsql;
 
@@ -2334,7 +2337,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description : Notifie la demande de publisation sur le SI FLORE des données
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_publicate (libSchema varchar, jdd varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_publicate (libSchema varchar, jdd varchar, version integer = 7) RETURNS setof zz_log AS 
 $BODY$ 
 DECLARE out zz_log%rowtype;
 DECLARE verifJdd varchar;
@@ -2346,6 +2349,8 @@ CASE WHEN jdd = 'data' OR jdd = 'taxa' THEN
 	EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE typ_jdd = '''||jdd||''' LIMIT 1' INTO verifJdd;
 	CASE WHEN verifJdd IS NOT NULL THEN
 		out.nb_occurence := jdd;PERFORM hub_log (libSchema, out); RETURN next out;
+		/*Constitution de la liste d'attente d'untégration des données*/
+		INSERT INTO public.publicating_queue(lib_schema, jdd, version) VALUES (libSchema, jdd, version);
 	ELSE
 		out.lib_log = 'Pas de jdd '||jdd;out.nb_occurence := '-';PERFORM hub_log (libSchema, out); RETURN next out;
 	END CASE;
@@ -2353,10 +2358,13 @@ ELSE
 	EXECUTE 'SELECT cd_jdd FROM '||libSchema||'.metadonnees WHERE cd_jdd = '''||jdd||'''' INTO verifJdd;
 	CASE WHEN verifJdd IS NOT NULL THEN 
 		out.nb_occurence := jdd; PERFORM hub_log (libSchema, out); RETURN next out;
+		/*Constitution de la liste d'attente d'untégration des données*/
+		INSERT INTO public.publicating_queue(lib_schema, jdd, version) VALUES (libSchema, jdd, version);
 	ELSE
 		out.lib_log = 'Ce jdd est absent de la base : '||jdd;out.nb_occurence := '-';PERFORM hub_log (libSchema, out); RETURN next out;
 	END CASE;
 END CASE;
+
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
