@@ -2448,6 +2448,40 @@ exception when others then
 end;
 $$ language plpgsql;
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_reset_sequence
+--- Description : Générique - met à jour les séquence au max de l'identifiant
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hub_reset_sequence() RETURNS void AS 
+$BODY$
+DECLARE _sql VARCHAR := '';
+DECLARE result threecol%rowtype; 
+BEGIN
+FOR result IN 
+WITH fq_objects AS (SELECT c.oid,n.nspname || '.' ||c.relname AS fqname ,c.relkind, c.relname AS relation FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace ),
+	sequences AS (SELECT oid,fqname FROM fq_objects WHERE relkind = 'S'),
+	tables    AS (SELECT oid, fqname FROM fq_objects WHERE relkind = 'r' )
+SELECT
+       s.fqname AS sequence,
+       t.fqname AS table,
+       a.attname AS column
+FROM
+     pg_depend d JOIN sequences s ON s.oid = d.objid
+                 JOIN tables t ON t.oid = d.refobjid
+                 JOIN pg_attribute a ON a.attrelid = d.refobjid and a.attnum = d.refobjsubid
+WHERE
+     d.deptype = 'a' 
+LOOP
+     EXECUTE 'SELECT setval('''||result.col1||''', COALESCE((SELECT MAX('||result.col3||')+1 FROM '||result.col2||'), 1), false);';
+END LOOP;
+END;$BODY$ LANGUAGE plpgsql;
+
+
+
+
 
 
 ---------------------------------------------------------------------------------------------------------
