@@ -257,7 +257,7 @@ WHEN typAction = 'create' THEN	--- Creation
 		EXECUTE 'SELECT * FROM hub_ref_create('''||libTable||''','''||path||''')';
 	END CASE;
 	-- Mise à jour des séquences
-	SELECT * FROM hub_reset_sequence();
+	PERFORM hub_reset_sequence();
 
 WHEN typAction = 'update' THEN	--- Mise à jour
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
@@ -272,7 +272,7 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
 	END CASE;
 	-- Mise à jour des séquences
-	SELECT * FROM hub_reset_sequence();	
+	PERFORM hub_reset_sequence();	
 
 WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	--- Tables
@@ -891,7 +891,7 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 END LOOP;
 
 -- Mise à jour des séquences
-SELECT * FROM hub_reset_sequence();
+PERFORM hub_reset_sequence();
 
 --- Output&Log
 out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
