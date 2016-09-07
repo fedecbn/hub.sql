@@ -1,0 +1,18 @@
+#!/bin/bash
+#---------Script d envoi de mail à l issu d actions sur le hub----------------------
+############################
+#Requete sql sur le HUB FCBN
+psql -p 5433 -c "SELECT * FROM public.publicating_queue;" si_flore_national | sed '1,2d' | sed '$d' | sed '$d' | 
+
+#boucle
+while read  lib_schema pipe1 jdd pipe2 version; do 
+ #output  pour debug
+ # echo "$lib_schema - $jdd - $version"
+
+ #migration des données
+ psql -q -p 5432 -c "SELECT * FROM siflore_data_refresh('$lib_schema','$jdd',$version);"  si_flore_national_v4
+done
+
+# on vide la table queue
+psql -q -p 5433 -c "TRUNCATE public.publicating_queue;" si_flore_national
+
