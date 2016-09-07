@@ -98,6 +98,11 @@ FOREACH fonction IN ARRAY listFunction LOOP
 	CASE WHEN exist IS NULL THEN EXECUTE 'CREATE EXTENSION "'||fonction||'";';
 	ELSE END CASE;
 END LOOP;
+
+-- emailing queue - pour la fonction de notification (=> utilisatin d'un cron)
+CREATE TABLE IF NOT EXISTS public.emailing_queue (lib_schema character varying,action character varying,date_log timestamp,user_log varchar);
+GRANT SELECT, INSERT ON TABLE public.emailing_queue TO public;
+
 END;$BODY$ LANGUAGE plpgsql;
 
 --- Lancé à chaque fois pour réinitialier les fonctions
@@ -2292,6 +2297,7 @@ WHEN action = 'clear' THEN
 	EXECUTE 'TRUNCATE "'||libSchema||'".zz_log';
 ELSE SELECT 1;
 END CASE;
+PERFORM hub_mail(outp.lib_schema,outp.typ_log,outp.date_log,outp.user_log);
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
@@ -2305,6 +2311,21 @@ $BODY$
 BEGIN
 EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||CURRENT_TIMESTAMP||''','''||current_user||''');';
 CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||libSchema||''',''-'',''-'','''||fction||''','''||logs||''',''-'','''||CURRENT_TIMESTAMP||''','''||current_user||''');'; ELSE END CASE;
+PERFORM hub_mail(libSchema,fction,CURRENT_TIMESTAMP,current_user);
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_mail
+--- Description : Renseigne la table emailing_queue - infos transmises par mail à l'admin et aux cbn
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_mail (libSchema varchar,action varchar,date_log timestamp with time zone,user_log name) RETURNS void AS 
+$BODY$ 
+BEGIN
+CASE WHEN action = 'hub_export' OR action = 'hub_push' OR action = 'hub_connect' OR action = 'hub_publicate' OR action = 'hub_import' OR action = 'siflore_data_refresh' THEN 
+	INSERT INTO emailing_queue (lib_schema, action, date_log, user_log) VALUES (libSchema,action,date_log,user_log);
+ELSE END CASE;
 END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
