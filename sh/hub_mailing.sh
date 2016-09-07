@@ -4,7 +4,7 @@
 #Requete sql sur le HUB FCBN
 from_mail="thomas.milon@fcbn.fr"
 admin_mail="informatique@fcbn.fr"
-psql -p 5433 -c "SELECT * FROM public.emailing_queue;" si_flore_national | sed '1,2d' | sed '$d' | sed '$d' | 
+psql -p 5433 -c "SELECT lib_schema, action, date_log, user_log FROM public.emailing_queue GROUP BY lib_schema, action, date_log, user_log;" si_flore_national | sed '1,2d' | sed '$d' | sed '$d' | 
 
 #boucle
 while read  lib_schema pipe1 action pipe3 date_log heure_log pipe4 user_log; do 
@@ -31,7 +31,7 @@ psql -q -p 5433 -c "TRUNCATE public.emailing_queue;" si_flore_national
 
 ############################
 #Requete sql sur le HUB FCBN
-psql -p 5432 -c "SELECT * FROM public.emailing_queue;" si_flore_national_v4 | sed '1,2d' | sed '$d' | sed '$d' |
+psql -p 5432 -c "SELECT lib_schema, action, date_log, user_log FROM public.emailing_queue GROUP BY lib_schema, action, date_log, user_log;" si_flore_national_v4 | sed '1,2d' | sed '$d' | sed '$d' |
 
 #boucle
 while read  lib_schema pipe1 action pipe3 date_log heure_log pipe4 user_log; do

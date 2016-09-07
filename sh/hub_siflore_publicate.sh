@@ -2,7 +2,7 @@
 #---------Script d envoi de mail à l issu d actions sur le hub----------------------
 ############################
 #Requete sql sur le HUB FCBN
-psql -p 5433 -c "SELECT * FROM public.publicating_queue;" si_flore_national | sed '1,2d' | sed '$d' | sed '$d' | 
+psql -p 5433 -c "SELECT lib_schema, jdd, version FROM public.publicating_queue GROUP BY lib_schema, jdd, version;" si_flore_national | sed '1,2d' | sed '$d' | sed '$d' | 
 
 #boucle
 while read  lib_schema pipe1 jdd pipe2 version; do 
