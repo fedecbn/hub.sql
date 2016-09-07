@@ -16,7 +16,6 @@
 --- La fonction hub_admin_init sera lancée automatiquement.
 
 --- 2. Installer le hub							
---- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'aa_meta')
 --- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'all')
 --- SELECT * FROM hub_admin_clone('hub')
 
@@ -257,6 +256,8 @@ WHEN typAction = 'create' THEN	--- Creation
 		libTable = ref;
 		EXECUTE 'SELECT * FROM hub_ref_create('''||libTable||''','''||path||''')';
 	END CASE;
+	-- Mise à jour des séquences
+	SELECT * FROM hub_reset_sequence();
 
 WHEN typAction = 'update' THEN	--- Mise à jour
 	EXECUTE 'SELECT DISTINCT 1 FROM information_schema.schemata WHERE schema_name =  ''ref''' INTO flag1;
@@ -270,7 +271,8 @@ WHEN typAction = 'update' THEN	--- Mise à jour
 		libTable = ref;
 		EXECUTE 'SELECT * FROM hub_ref_update('''||libTable||''','''||path||''')';
 	END CASE;
-	
+	-- Mise à jour des séquences
+	SELECT * FROM hub_reset_sequence();	
 
 WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	--- Tables
@@ -858,11 +860,10 @@ CASE WHEN refPartie = 'all' THEN DROP SCHEMA IF EXISTS ref CASCADE; ELSE END CAS
 -- Création du schema ref
 SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref';
 CASE WHEN flag IS NULL THEN CREATE SCHEMA ref; ELSE END CASE;
--- Création et mise à jour de la meta-table référentiel
-SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref' AND tablename = 'aa_meta';
-CASE WHEN flag IS NULL THEN CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id)); ELSE END CASE;
 
-TRUNCATE ref.aa_meta;
+-- Création et mise à jour de la meta-table référentiel
+DROP TABLE IF EXISTS ref.aa_meta;
+CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
 EXECUTE 'INSERT INTO ref.aa_meta SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
 
 --- Les référentiels
@@ -878,18 +879,19 @@ FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER 
 		' INTO bdlink_structure;
 
 	CASE WHEN refPartie = 'all' OR refPartie = libTable THEN
-		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag ;
-		CASE WHEN flag IS NULL THEN EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out; ELSE END CASE;
-		EXECUTE 'TRUNCATE ref.'||libTable||';';
-		
+		EXECUTE 'DROP TABLE IF EXISTS ref.'||libTable||';';
+		EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';';	
 		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
-
+		
 		--- Index geo
 		CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
 
 		out.lib_log := libTable||' : données importées';RETURN next out;
 	ELSE END CASE;
 END LOOP;
+
+-- Mise à jour des séquences
+SELECT * FROM hub_reset_sequence();
 
 --- Output&Log
 out.lib_log := 'ref mis à jour';out.lib_schema := 'ref';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_connect_ref';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN next out;
@@ -2478,10 +2480,6 @@ LOOP
      EXECUTE 'SELECT setval('''||result.col1||''', COALESCE((SELECT MAX('||result.col3||')+1 FROM '||result.col2||'), 1), false);';
 END LOOP;
 END;$BODY$ LANGUAGE plpgsql;
-
-
-
-
 
 
 ---------------------------------------------------------------------------------------------------------
