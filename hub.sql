@@ -325,6 +325,10 @@ CREATE OR REPLACE FUNCTION hub_admin_refresh(libSchema varchar, typ varchar = nu
 $BODY$ 
 DECLARE out zz_log%rowtype;
 DECLARE result threecol%rowtype;
+DECLARE result2 twocol%rowtype;
+DECLARE list_champ varchar;
+DECLARE list_contraint varchar;
+DECLARE list_champ_sans_format varchar;
 DECLARE valeurs varchar;
 DECLARE libTable varchar;
 DECLARE sch_from varchar;
@@ -335,14 +339,15 @@ CASE WHEN typ = 'date' THEN
 		ALTER TABLE '||libSchema||'.releve ALTER COLUMN date_fin SET DATA TYPE date USING date_fin::date;';
 	out.lib_log := 'Refresh date OK';
 WHEN typ = 'check' THEN
-	FOR result IN SELECT a.cd_champ, z.cd_table, z.format FROM ref.voca_ctrl a JOIN ref.fsd z ON a.cd_champ = z.cd_champ GROUP BY a.cd_champ, z.cd_table, z.format LOOP
-		CASE WHEN result.col3 = 'integer' THEN EXECUTE 'SELECT ''(''||string_agg(code_valeur,'','')||'')'' FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
-			ELSE EXECUTE  'SELECT replace(''(''''''||string_agg(code_valeur,'','')||'''''')'','','','''''','''''') FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
-		END CASE;
-		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' DROP CONSTRAINT IF EXISTS '||result.col1||'_check;';
-		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
+	FOR libTable IN SELECT cd_table FROM ref.fsd GROUP BY cd_table LOOP
+		PERFORM hub_add_constraint_check(libSchema, cd_table);
 	END LOOP;
 	out.lib_log := 'Refresh CHECK OK';
+WHEN typ = 'check' THEN
+	FOR libTable IN SELECT cd_table FROM ref.fsd GROUP BY cd_table LOOP
+		PERFORM hub_add_constraint_geom(libSchema, cd_table);
+	END LOOP;
+	out.lib_log := 'Refresh GEOM srid OK';
 WHEN typ = 'maille' THEN
 	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET cd_geo = ''10kmL93''||cd_geo WHERE typ_geo = ''m10'' AND cd_geo NOT LIKE ''10kmL93%'';';
 	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET cd_geo = ''10kmL93''||cd_geo WHERE typ_geo = ''m10'' AND cd_geo NOT LIKE ''10kmL93%'';';
@@ -353,27 +358,25 @@ WHEN typ = 'lib_commune' THEN
 	EXECUTE 'UPDATE '||libSchema||'.releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
 	EXECUTE 'UPDATE '||libSchema||'.temp_releve_territoire SET lib_geo = nom_comm FROM (SELECT insee_comm, nom_comm FROM ref.geo_commune) com WHERE com.insee_comm = cd_geo AND typ_geo = ''com'' AND (lib_geo IS NULL OR lib_geo = ''I'');';
 	out.lib_log := 'Refresh commune OK';
-WHEN typ = 'transform ' THEN
-	EXECUTE 'SELECT * FROM hub_admin_clone('''||libSchema||'_''); ';
-	sch_from = libSchema;
-	sch_to = libSchema||'_';
-
-	--- Pour les tables du FSD
-	FOR libTable IN SELECT DISTINCT cd_table FROM ref.fsd LOOP 
-		EXECUTE 'INSERT INTO '||sch_to||'.'||libTable||' SELECT * FROM '||sch_from||'.'||libTable||';
-			INSERT INTO '||sch_to||'.temp_'||libTable||' SELECT * FROM '||sch_from||'.temp_'||libTable||';';
-		END LOOP;
-	--- Pour les logs
-	EXECUTE 'INSERT INTO '||sch_to||'.zz_log SELECT * FROM '||sch_from||'.zz_log;
-		INSERT INTO '||sch_to||'.zz_log_liste_taxon SELECT * FROM '||sch_from||'.zz_log_liste_taxon;
-		INSERT INTO '||sch_to||'.zz_log_liste_taxon_et_infra SELECT * FROM '||sch_from||'.zz_log_liste_taxon_et_infra;';
-
-	--- Ajouter une partie pour remettre les droits nécessaires ==> information_schema.column_privileges
-	EXECUTE 'DROP SCHEMA '||sch_from||' CASCADE;ALTER SCHEMA '||sch_to||' RENAME TO '||sch_from||';';
-	out.lib_log := 'Refresh all OK';
+WHEN typ = 'maj_structure' THEN
+	/*Création des tables inexistantes*/
+	FOR libTable IN EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd LEFT JOIN information_schema.tables ON table_name = cd_table AND table_schema = '''||libSchema||''' WHERE table_name IS NULL ORDER BY cd_table;' LOOP
+		PERFORM hub_admin_create(libSchema, libTable);
+	END LOOP;
+	/*Création des champs inexistantes*/
+	FOR result IN EXECUTE 'SELECT cd_table, cd_champ, format FROM ref.fsd LEFT JOIN information_schema.columns ON table_name = cd_table AND column_name = cd_champ AND table_schema = '''||libSchema||''' WHERE column_name IS NULL;' LOOP
+		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col1||' ADD COLUMN '||result.col2||' '||result.col13||';';
+	END LOOP;
+	/*mise à jour de toutes les contraintes check*/
+	FOR libTable IN SELECT cd_table FROM ref.fsd GROUP BY cd_table LOOP
+		PERFORM hub_add_constraint_check(libSchema, libTable);
+		PERFORM hub_add_constraint_geom(libSchema, libTable);
+	END LOOP;
+	/*zzlog user_log*/
+	PERFORM hub_add_champ(libSchema, 'zz_log', 'user_log', 'varchar');
+	out.lib_log := 'maj_structure OK';
 ELSE out.lib_log := 'No refresh';
 END CASE;
-
 
 --- Output&Log
 out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_refresh';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
@@ -2512,6 +2515,24 @@ FOR result IN EXECUTE 'SELECT cd_champ, cd_table, srid_geom FROM ref.fsd WHERE c
 END LOOP;
 END;$BODY$ LANGUAGE plpgsql;
 
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_add_champ
+--- Description : ajout de champ direct au hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hub_add_champ(libSchema varchar, cd_table varchar, cd_champ varchar, typ_champ varchar) RETURNS void AS 
+$BODY$
+DECLARE exist integer; 
+BEGIN
+EXECUTE 'SELECT 1 FROM information_schema.columns WHERE table_schema = '''||libSchema||''' AND table_name = '''||cd_table||''' AND column_name = '''||cd_champ||''';' into exist;
+CASE WHEN exist IS NULL THEN
+	EXECUTE 'ALTER TABLE '||libSchema||'.'||cd_table||' add column '||cd_champ||' '||typ_champ||';';
+ELSE END CASE;
+END;$BODY$ LANGUAGE plpgsql;
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 --- Nom : hub_reset_sequence
 --- Description : Générique - met à jour les séquence au max de l'identifiant
 ---------------------------------------------------------------------------------------------------------
