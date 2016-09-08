@@ -98,12 +98,18 @@ FOREACH fonction IN ARRAY listFunction LOOP
 	ELSE END CASE;
 END LOOP;
 
--- emailing queue - pour la fonction de notification (=> utilisation d'un cron)
+/* emailing queue - pour la fonction de notification (=> utilisation d'un cron)*/
 CREATE TABLE IF NOT EXISTS public.emailing_queue (lib_schema character varying,action character varying,date_log timestamp,user_log varchar);
 GRANT SELECT, INSERT ON TABLE public.emailing_queue TO public;
--- publicating queue - pour la fonction de hub_to_siflore (=> utilisation d'un cron)
+/* publicating queue - pour la fonction de hub_to_siflore (=> utilisation d'un cron)*/
 CREATE TABLE IF NOT EXISTS public.publicating_queue (lib_schema character varying,jdd varchar, version integer);
 GRANT SELECT, INSERT ON TABLE public.publicating_queue TO public;
+
+/*ajout du user_log dans le zzlog*/
+SELECT 1 into exist FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'zz_log' AND column_name = 'user_log';
+CASE WHEN exist IS NULL THEN
+	ALTER TABLE public.zz_log add column user_log varchar;
+ELSE END CASE;
 
 END;$BODY$ LANGUAGE plpgsql;
 
