@@ -11,6 +11,9 @@ while read  lib_schema pipe1 jdd pipe2 version; do
 
  #migration des données
  psql -q -p 5432 -c "SELECT * FROM siflore_data_refresh('$lib_schema','$jdd',$version);"  si_flore_national_v4
+
+ #agregation des données
+ psql -q -p 5433 -c "SELECT * FROM hub_aggregate('$lib_schema','data');"  si_flore_national
 done
 
 #mise à jour des synthèses et réf (liste taxon)
