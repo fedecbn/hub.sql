@@ -340,12 +340,12 @@ CASE WHEN typ = 'date' THEN
 	out.lib_log := 'Refresh date OK';
 WHEN typ = 'check' THEN
 	FOR libTable IN SELECT cd_table FROM ref.fsd GROUP BY cd_table LOOP
-		PERFORM hub_add_constraint_check(libSchema, cd_table);
+		PERFORM hub_add_constraint_check(libSchema, libTable);
 	END LOOP;
 	out.lib_log := 'Refresh CHECK OK';
 WHEN typ = 'check' THEN
 	FOR libTable IN SELECT cd_table FROM ref.fsd GROUP BY cd_table LOOP
-		PERFORM hub_add_constraint_geom(libSchema, cd_table);
+		PERFORM hub_add_constraint_geom(libSchema, libTable);
 	END LOOP;
 	out.lib_log := 'Refresh GEOM srid OK';
 WHEN typ = 'maille' THEN
