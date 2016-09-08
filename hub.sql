@@ -144,31 +144,15 @@ CASE WHEN flag = 1 THEN
 ELSE 
 	EXECUTE 'CREATE SCHEMA "'||schema_lower||'";';
 
-	--- Hub
+	--- Création d'un schema
 	FOR typjdd IN SELECT typ_jdd FROM ref.fsd GROUP BY typ_jdd
 	LOOP
 		FOR cd_table IN EXECUTE 'SELECT cd_table FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' GROUP BY cd_table'
 		LOOP
-			CASE WHEN typ = 'all' OR typ = 'propre' THEN
-				EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ;
-				EXECUTE 'SELECT ''CONSTRAINT ''||cd_table||''_pkey PRIMARY KEY (''||string_agg(cd_champ,'','')||'')'' FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' AND unicite = ''Oui'' GROUP BY cd_table' INTO list_contraint ;
-				EXECUTE 'CREATE TABLE '||schema_lower||'.'||cd_table||' ('||list_champ||','||list_contraint||');';
-			ELSE END CASE;
-			CASE WHEN typ = 'all' OR typ = 'temp' THEN
-				EXECUTE 'SELECT string_agg(one.cd_champ||'' character varying'','','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE typ_jdd = '''||typjdd||''' AND cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ_sans_format;
-				EXECUTE 'CREATE TABLE '||schema_lower||'.temp_'||cd_table||' ('||list_champ_sans_format||');';
-			ELSE END CASE;
+			SELECT * INTO out FROM hub_admin_create(schema_lower,cd_table, typ);
 		END LOOP;
 	END LOOP;
 
-	--- Contrainte check
-	FOR result IN SELECT a.cd_champ, z.cd_table, z.format FROM ref.voca_ctrl a JOIN ref.fsd z ON a.cd_champ = z.cd_champ GROUP BY a.cd_champ, z.cd_table, z.format LOOP
-		CASE WHEN result.col3 = 'integer' THEN EXECUTE 'SELECT ''(''||string_agg(code_valeur,'','')||'')'' FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
-			ELSE EXECUTE  'SELECT replace(''(''''''||string_agg(code_valeur,'','')||'''''')'','','','''''','''''') FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
-		END CASE;
-		EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
-	END LOOP;
-	
 	--- LISTE TAXON
 	EXECUTE '
 	CREATE TABLE "'||schema_lower||'".zz_log_liste_taxon  (cd_ref character varying, nom_valide character varying);
@@ -2458,6 +2442,76 @@ $$ language plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_create
+--- Description : Création des tables à partir du fsd
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hub_admin_create(libSchema varchar, cd_table varchar, typ varchar= 'all') RETURNS void AS 
+$BODY$
+DECLARE list_champ varchar; 
+DECLARE list_champ_sans_format varchar; 
+DECLARE list_contraint varchar; 
+DECLARE valeurs varchar; 
+DECLARE result threecol%rowtype; 
+BEGIN
+/*Les tables propre et temp*/
+CASE WHEN typ = 'all' OR typ = 'propre' THEN
+	EXECUTE 'SELECT string_agg(one.cd_champ||'' ''||one.format,'','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ;
+	EXECUTE 'SELECT ''CONSTRAINT ''||cd_table||''_pkey PRIMARY KEY (''||string_agg(cd_champ,'','')||'')'' FROM ref.fsd WHERE cd_table = '''||cd_table||''' AND unicite = ''Oui'' GROUP BY cd_table' INTO list_contraint ;
+	EXECUTE 'CREATE TABLE '||libSchema||'.'||cd_table||' ('||list_champ||','||list_contraint||');';
+	/*contrainte check - voca_ctrl*/
+	PERFORM hub_add_constraint_check(libSchema, cd_table);
+	/*contrainte check - geometry*/
+	PERFORM hub_add_constraint_geom(libSchema, cd_table);
+
+ELSE END CASE;
+CASE WHEN typ = 'all' OR typ = 'temp' THEN
+	EXECUTE 'SELECT string_agg(one.cd_champ||'' character varying'','','') FROM (SELECT cd_champ, format FROM ref.fsd WHERE cd_table = '''||cd_table||''' ORDER BY ordre_champ) as one;' INTO list_champ_sans_format;
+	EXECUTE 'CREATE TABLE '||libSchema||'.temp_'||cd_table||' ('||list_champ_sans_format||');';
+ELSE END CASE;
+
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_add_constraint_check
+--- Description : ajout des contrainte check au hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hub_add_constraint_check(libSchema varchar, cd_table varchar) RETURNS void AS 
+$BODY$
+DECLARE valeurs varchar; 
+DECLARE result threecol%rowtype; 
+BEGIN
+FOR result IN EXECUTE 'SELECT a.cd_champ, z.cd_table, z.format FROM ref.voca_ctrl a JOIN ref.fsd z ON a.cd_champ = z.cd_champ WHERE z.cd_table = '''||cd_table||''' GROUP BY a.cd_champ, z.cd_table, z.format;' LOOP
+	CASE WHEN result.col3 = 'integer' THEN 
+		EXECUTE 'SELECT ''(''||string_agg(code_valeur,'','')||'')'' FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;
+		ELSE EXECUTE 'SELECT replace(''(''''''||string_agg(code_valeur,'','')||'''''')'','','','''''','''''') FROM ref.voca_ctrl WHERE cd_champ = '''||result.col1||'''' INTO valeurs;  
+	END CASE;
+	EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' DROP CONSTRAINT IF EXISTS '||result.col1||'_check;';
+	EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_check CHECK ('||result.col1||' IN '||valeurs||');';
+END LOOP;
+END;$BODY$ LANGUAGE plpgsql;
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+--- Nom : hub_add_constraint_geom
+--- Description : ajout des contrainte geometrique au hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION hub_add_constraint_geom(libSchema varchar, cd_table varchar) RETURNS void AS 
+$BODY$
+DECLARE result threecol%rowtype; 
+BEGIN
+FOR result IN EXECUTE 'SELECT cd_champ, cd_table, srid_geom FROM ref.fsd WHERE cd_table = '''||cd_table||''' AND srid_geom IS NOT NULL GROUP BY cd_champ, cd_table, srid_geom;' LOOP
+	EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' DROP CONSTRAINT IF EXISTS '||result.col1||'_srid;';
+	EXECUTE 'ALTER TABLE '||libSchema||'.'||result.col2||' ADD CONSTRAINT '||result.col1||'_srid CHECK (st_srid('||result.col1||') = '||result.col3||');';
+END LOOP;
+END;$BODY$ LANGUAGE plpgsql;
+
 --- Nom : hub_reset_sequence
 --- Description : Générique - met à jour les séquence au max de l'identifiant
 ---------------------------------------------------------------------------------------------------------
