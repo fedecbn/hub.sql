@@ -590,7 +590,7 @@ CASE WHEN ct <> 0 THEN
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 --- les acteurs des communes
-	UPDATE exploitation.obs_commune input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	UPDATE exploitation.obs_commune input SET libelle_organisme = lib_orgm, observateur = nom_acteur
 	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm 
 	FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
@@ -639,7 +639,7 @@ INSERT INTO exploitation.obs_maille_fr10
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 --- les acteurs des mailles 10
-	UPDATE exploitation.obs_maille_fr10 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	UPDATE exploitation.obs_maille_fr10 input SET libelle_organisme = lib_orgm, observateur = nom_acteur
 	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
 	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
@@ -686,7 +686,7 @@ INSERT INTO exploitation.obs_maille_fr5
 	AND date_debut IS NOT NULL AND date_fin IS NOT NULL
 	AND cd_validite = 1;
 --- les acteurs des mailles 5
-	UPDATE exploitation.obs_maille_fr5 input SET libelle_organisme = nom_acteur, observateur = lib_orgm
+	UPDATE exploitation.obs_maille_fr5 input SET libelle_organisme = lib_orgm, observateur = nom_acteur
 	FROM (SELECT obs.cd_jdd||'_'||obs.cd_obs_mere as id_flore_fcbn, string_agg(nom_acteur,', ') as nom_acteur, string_agg(lib_orgm,', ') as lib_orgm FROM hub.releve_acteur rel JOIN hub.observation as obs ON rel.cd_jdd = obs.cd_jdd AND rel.cd_releve = obs.cd_releve 
 	GROUP BY obs.cd_jdd||'_'||obs.cd_obs_mere) as result
 	WHERE result.id_flore_fcbn = input.id_flore_fcbn;
