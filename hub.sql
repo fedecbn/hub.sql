@@ -1555,7 +1555,7 @@ out.lib_schema := schemaSource; out.lib_table := tableSource; out.lib_champ := '
 EXECUTE 'SELECT string_agg(''a."''||cd_champ||''" = b."''||cd_champ||''"'','' AND '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO jointure;
 EXECUTE 'SELECT string_agg(''''''''||cd_champ||'''''''','', '') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRef_guillement;
 EXECUTE 'SELECT string_agg(''a.''||cd_champ,''||'') FROM ref.fsd WHERE (cd_table = '''||tableSource||''' OR cd_table = '''||tableDest||''') AND unicite = ''Oui''' INTO champRef;
-EXECUTE 'SELECT string_agg(''"''||column_name||''" = b."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns WHERE table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' AND column_name NOT IN ('||champRef_guillement||')' INTO listeChamp;
+EXECUTE 'SELECT string_agg(''"''||column_name||''" = b."''||column_name||''"::''||udt_name,'','')  FROM information_schema.columns WHERE table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' AND column_name NOT IN ('||champRef_guillement||')' INTO listeChamp;
 EXECUTE 'SELECT string_agg(''a."''||column_name||''"::varchar <> b."''||column_name||''"::varchar'','' OR '')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' AND column_name NOT IN ('||champRef_guillement||')' INTO wheres;
 EXECUTE 'SELECT count(DISTINCT '||champRef||') FROM '||source||' a JOIN '||destination||' b ON '||jointure||' WHERE a.cd_jdd IN ('||listJdd||') AND ('||wheres||');' INTO compte;
 
@@ -2039,7 +2039,7 @@ ELSE listJdd := ''''||jdd||'''';
 END CASE;
 
 CASE WHEN typAction = 'push_total' OR typAction = 'push_diff' THEN
-	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::''||data_type,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
+	EXECUTE 'SELECT string_agg(''a."''||column_name||''"::''||udt_name,'','')  FROM information_schema.columns where table_name = '''||tableDest||''' AND table_schema = '''||schemaDest||''' ' INTO listeChamp1;
 	EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM information_schema.columns where table_name = '''||tableSource||''' AND table_schema = '''||schemaSource||''' ' INTO listeChamp2;
 ELSE SELECT 1 INTO nothing; END CASE;
 
