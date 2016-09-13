@@ -317,6 +317,42 @@ END;$BODY$ LANGUAGE plpgsql;
 
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
+--- Nom : hub_admin_maj
+--- Description : Mise à jour du hub
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION hub_admin_maj(libSchema varchar, utilisateur varchar, mot_de_passe varchar, epsg integer = 2154) RETURNS setof zz_log  AS 
+$BODY$ 
+DECLARE out zz_log%rowtype;
+DECLARE test varchar;
+BEGIN
+-- mise à jour des référentiels
+SELECT * into out FROM hub_connect_ref('94.23.218.10', '5433', 'si_flore_national',utilisateur,mot_de_passe,'all');
+PERFORM hub_log (libSchema, out);RETURN next out;
+
+-- mise à jour de la structure.
+EXECUTE 'UPDATE ref.fsd SET srid_geom = '||epsg||' WHERE srid_geom = 2154';
+SELECT * into out FROM hub_admin_refresh(libSchema,'maj_structure');
+PERFORM hub_log (libSchema, out);RETURN next out;
+
+--- ATTENTION : si des données sont dans la partie propre et qu'elle ne sont pas conforme au niveau du vocabulaire contrôlé, la fonction retournera une erreur. Récupérez les données dans la partie temporaire et videz la partie propre avant de lancer cette commande
+
+
+-- Cas particulier -permet de transformer les champ date_debut et date_fin en format date (initialement, ces champs était au format texte).
+SELECT data_type into test FROM information_schema.columns where table_name = 'releve' AND table_schema = 'hub' AND column_name = 'date_debut';
+CASE WHEN test = 'character varying' THEN
+	SELECT * FROM hub_admin_refresh(libSchema,'date');PERFORM hub_log (libSchema, out);RETURN next out;
+ELSE END CASE;
+--- ATTENTION : si des données sont dans la partie propre et qu'elle ne sont pas conforme au niveau des dates, la fonction retournera une erreur. Récupérez les données dans la partie temporaire et videz la partie propre avant de lancer cette commande
+
+--- Output&Log
+out.lib_log := 'Mise à jour réalisée';
+out.lib_schema := libSchema;out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_maj';out.nb_occurence := 1;SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
+END; $BODY$ LANGUAGE plpgsql;
+
+
+---------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------
 --- Nom : hub_admin_refresh
 --- Description : Pour mettre à jour la structure du FSD lors de changement benin (type de donnée, clé primaire)
 ---------------------------------------------------------------------------------------------------------
