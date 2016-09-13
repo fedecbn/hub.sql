@@ -343,7 +343,7 @@ WHEN typ = 'check' THEN
 		PERFORM hub_add_constraint_check(libSchema, libTable);
 	END LOOP;
 	out.lib_log := 'Refresh CHECK OK';
-WHEN typ = 'check' THEN
+WHEN typ = 'geom' THEN
 	FOR libTable IN SELECT cd_table FROM ref.fsd GROUP BY cd_table LOOP
 		PERFORM hub_add_constraint_geom(libSchema, libTable);
 	END LOOP;
