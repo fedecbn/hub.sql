@@ -1304,7 +1304,7 @@ END; $BODY$  LANGUAGE plpgsql;
 --- Description : Générer une table avec les taxon infra depuis la table zz_log_liste_taxon
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_txinfra(libSchema varchar) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION hub_txinfra(libSchema varchar, version_taxref integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE i varchar;
@@ -1317,11 +1317,11 @@ FOR i in EXECUTE 'select cd_ref from "'||libSchema||'".zz_log_liste_taxon'
 		select '''||i||''' as cd_ref_demande, '''' as nom_valide_demande, foo.* from 
 		(WITH RECURSIVE hierarchie(cd_nom,nom_complet, cd_taxsup, rang) AS (
 		SELECT cd_nom, nom_complet, cd_taxsup, rang
-		FROM ref.taxref_v5 t1
+		FROM ref.taxref_v'||libSchema||' t1
 		WHERE t1.cd_nom = '''||i||''' AND t1.cd_nom = t1.cd_ref
 		UNION
 		SELECT t2.cd_nom, t2.nom_complet, t2.cd_taxsup, t2.rang
-		FROM ref.taxref_v5 t2
+		FROM ref.taxref_v'||libSchema||' t2
 		JOIN hierarchie h ON t2.cd_taxsup = h.cd_nom
 		WHERE t2.cd_nom = t2.cd_ref
 		) SELECT * FROM hierarchie) as foo';
