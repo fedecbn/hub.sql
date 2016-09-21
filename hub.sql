@@ -2322,7 +2322,15 @@ END;$BODY$ LANGUAGE plpgsql;
 ---------------------------------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION hub_log (libSchema varchar, outp zz_log, action varchar = 'write') RETURNS void AS 
 $BODY$ 
+DECLARE exist integer;
 BEGIN
+
+/*ajout du user_log dans le zzlog*/
+EXECUTE 'SELECT 1 into exist FROM information_schema.columns WHERE table_schema = '''||libSchema||''' AND table_name = ''zz_log'' AND column_name = ''user_log'';' INTO exist;
+CASE WHEN exist IS NULL THEN
+	EXECUTE 'ALTER TABLE '||libSchema||'.zz_log add column user_log varchar;';
+ELSE END CASE;
+
 CASE WHEN action = 'write' THEN
 	EXECUTE 'INSERT INTO "'||libSchema||'".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''','''||outp.user_log||''');';
 	CASE WHEN libSchema <> 'public' THEN EXECUTE 'INSERT INTO "public".zz_log (lib_schema,lib_table,lib_champ,typ_log,lib_log,nb_occurence,date_log,user_log) VALUES ('''||outp.lib_schema||''','''||outp.lib_table||''','''||outp.lib_champ||''','''||outp.typ_log||''','''||outp.lib_log||''','''||outp.nb_occurence||''','''||outp.date_log||''','''||outp.user_log||''');'; 
