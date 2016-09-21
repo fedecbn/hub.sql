@@ -3,7 +3,7 @@
 --- Pas à pas pour la création du SI FLORE
 -------------------------------------------------------------
 --- 1. Création de la base de données SI FLORE
--- CREATE DATABASE si_flore_national_2016_07_12 OWNER postgres ENCODING 'UTF-8';
+-- CREATE DATABASE siflore_data OWNER postgres ENCODING 'UTF-8';
 -- Récupérer les fonction en lançant les script hub.sql ET hub_to_siflore.sql sur cette base de données.
 -- SELECT * FROM siflore_clone();
 
@@ -97,7 +97,7 @@ DECLARE exist varchar;
 DECLARE base_source varchar;
 BEGIN
 /*variables*/
-base_source = 'si_flore_national_v3';
+base_source = 'siflore_data_temp';
 
 --- Schema: observation;
 DROP SCHEMA IF EXISTS observation CASCADE; CREATE SCHEMA observation;
@@ -190,25 +190,25 @@ CREATE TABLE exploitation.stt_lr_nat_catnat(uid integer NOT NULL,statuts_nat tex
 CREATE TABLE exploitation.suivi_maj_data(cd_jdd varchar NOT NULL, date_maj timestamp,CONSTRAINT suivi_maj_data_pkey PRIMARY KEY (cd_jdd));
 -- Table: exploitation.convention_berne
 CREATE TABLE exploitation.convention_berne(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer,CONSTRAINT convention_berne_pkey PRIMARY KEY (cd_ref));
-INSERT INTO exploitation.convention_berne SELECT * FROM dblink('dbname=si_flore_national_v3','SELECT * FROM exploitation.convention_berne;') as t1(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer);
+EXECUTE 'INSERT INTO exploitation.convention_berne SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.convention_berne;'') as t1(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer);';
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
 -- Table: observation_reunion.communes_bdtopo_reunion
 CREATE TABLE observation_reunion.communes_bdtopo_reunion(  gid serial NOT NULL,  id character varying,  prec_plani double precision,  nom character varying,  code_insee character varying NOT NULL,  statut character varying,  canton character varying,  arrondisst character varying,  depart character varying,  region character varying,  popul integer,  multican character varying,  geom geometry(MultiPolygon,2975),  geom_3857_s100 geometry(MultiPolygon,3857),  geom_3857 geometry(MultiPolygon,3857),  CONSTRAINT communes_bd_topo_reunion_pkey PRIMARY KEY (code_insee));
-INSERT INTO observation_reunion.communes_bdtopo_reunion SELECT * FROM dblink('dbname=si_flore_national_v3','SELECT * FROM observation_reunion.communes_bdtopo_reunion;') as t1(gid integer,  id character varying(24),  prec_plani double precision,  nom character varying,  code_insee character varying,  statut character varying,  canton character varying(45),  arrondisst character varying,  depart character varying,  region character varying,  popul integer,  multican character varying,  geom geometry(MultiPolygon,2975),  geom_3857_s100 geometry(MultiPolygon,3857),  geom_3857 geometry(MultiPolygon,3857));
+EXECUTE 'INSERT INTO observation_reunion.communes_bdtopo_reunion SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM observation_reunion.communes_bdtopo_reunion;'') as t1(gid integer,  id character varying(24),  prec_plani double precision,  nom character varying,  code_insee character varying,  statut character varying,  canton character varying(45),  arrondisst character varying,  depart character varying,  region character varying,  popul integer,  multican character varying,  geom geometry(MultiPolygon,2975),  geom_3857_s100 geometry(MultiPolygon,3857),  geom_3857 geometry(MultiPolygon,3857));';
 DROP INDEX IF EXISTS communes_bdtopo_reunion_geom_gist; CREATE INDEX communes_bdtopo_reunion_geom_gist  ON observation_reunion.communes_bdtopo_reunion  USING gist  (geom);
 -- Table: observation_reunion.grille_10km_zee_974
 CREATE TABLE observation_reunion.grille_10km_zee_974(  gid serial NOT NULL,  cd_sig character varying NOT NULL,  code_10km character varying,  geom geometry(MultiPolygon,2975),  CONSTRAINT grille_10km_zee_974_pkey PRIMARY KEY (cd_sig));
-INSERT INTO observation_reunion.grille_10km_zee_974 SELECT * FROM dblink('dbname=si_flore_national_v3','SELECT * FROM observation_reunion.grille_10km_zee_974;') as t1 (  gid integer,  cd_sig character varying(21),  code_10km character varying,  geom geometry(MultiPolygon,2975));
+EXECUTE 'INSERT INTO observation_reunion.grille_10km_zee_974 SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM observation_reunion.grille_10km_zee_974;'') as t1 (  gid integer,  cd_sig character varying(21),  code_10km character varying,  geom geometry(MultiPolygon,2975));';
 DROP INDEX IF EXISTS grille_10km_zee_974_geom_gist;CREATE INDEX grille_10km_zee_974_geom_gist  ON observation_reunion.grille_10km_zee_974  USING gist  (geom);
 -- Table: observation_reunion.maille_utm1
 CREATE TABLE observation_reunion.maille_utm1(gid serial,  nom_maille character varying NOT NULL,  centroid_x character varying,  centroid_y character varying,  geom geometry(MultiPolygon,2975),  geom_3857_s100 geometry(MultiPolygon,3857),  geom_3857 geometry(MultiPolygon,3857),  CONSTRAINT maille_utm1_pkey PRIMARY KEY (nom_maille));
-INSERT INTO observation_reunion.maille_utm1 SELECT * FROM dblink('dbname=si_flore_national_v3','SELECT * FROM observation_reunion.maille_utm1;') as t1 (gid integer,  nom_maille character varying,  centroid_x character varying,  centroid_y character varying,  geom geometry(MultiPolygon,2975),  geom_3857_s100 geometry(MultiPolygon,3857),  geom_3857 geometry(MultiPolygon,3857));
+EXECUTE 'INSERT INTO observation_reunion.maille_utm1 SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM observation_reunion.maille_utm1;'') as t1 (gid integer,  nom_maille character varying,  centroid_x character varying,  centroid_y character varying,  geom geometry(MultiPolygon,2975),  geom_3857_s100 geometry(MultiPolygon,3857),  geom_3857 geometry(MultiPolygon,3857));';
 DROP INDEX IF EXISTS maille_1x1_utm_geom_gist;CREATE INDEX maille_1x1_utm_geom_gist  ON observation_reunion.maille_utm1  USING gist  (geom);
 -- Table: observation_reunion.index_reunion
 CREATE TABLE observation_reunion.index_reunion( code_taxon integer NOT NULL,  nom_taxon character varying NOT NULL,  cd_ref integer,  nom_complet character varying,  CONSTRAINT index_reunion_pkey PRIMARY KEY (code_taxon, nom_taxon));
-INSERT INTO observation_reunion.index_reunion SELECT * FROM dblink('dbname = si_flore_national_v3','SELECT * FROM observation_reunion.index_reunion') as t1 (code_taxon integer,  nom_taxon character varying,  cd_ref integer,  nom_complet character varying);
+EXECUTE 'INSERT INTO observation_reunion.index_reunion SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM observation_reunion.index_reunion'') as t1 (code_taxon integer,  nom_taxon character varying,  cd_ref integer,  nom_complet character varying);';
 DROP INDEX IF EXISTS idk_code_taxon;CREATE INDEX idk_code_taxon  ON observation_reunion.index_reunion  USING btree  (code_taxon);
 -- Table: observation_reunion.observation_taxon_reunion
 CREATE TABLE observation_reunion.observation_taxon_reunion(  id_flore_fcn character varying NOT NULL,  code_taxon integer NOT NULL,  nom_taxon character varying,  code_taxon_mere varchar,  referentiel_mere character varying,  nom_taxon_mere character varying,  nom_taxon_originel character varying,  remarque_taxon character varying,  statut_pop character varying NOT NULL,  bd_mere character varying NOT NULL,  usage_donnee integer NOT NULL,  bd_source character varying,  libelle_court_bd_source character varying,  id_flore_source character varying,  sup_donnee boolean,  remarque_donnee_mere character varying,  nature_date character(2) NOT NULL,  remarque_date character varying,  syst_ref_spatial character varying,  nature_objet_geo character varying,  remarque_lieu character varying,  type_source character varying NOT NULL,  type_doc character varying,  cote_biblio_cbn varchar,  titre_doc character varying,  annee_doc integer,  auteur_doc character varying,  ref_doc character varying,  code_herbarium character varying,  code_index_herbariorum character varying,  nom_herbarium character varying,  code_herbier character varying,  nom_herbier character varying,  part_herbier character varying,  id_part character varying,  cote_biblio_bd_mere character varying,  date_debut_obs date NOT NULL,  date_fin_obs date NOT NULL,  id_objet_geo integer,  date_transmission date NOT NULL,  id_flore_mere character varying, cd_jdd character varying, CONSTRAINT observation_taxon_pkey PRIMARY KEY (id_flore_fcbn),  CONSTRAINT observation_taxon_bd_mere_fkey FOREIGN KEY (bd_mere)      REFERENCES observation.bd_mere (bd_mere) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_code_taxon_fkey FOREIGN KEY (code_taxon, nom_taxon)      REFERENCES observation_reunion.index_reunion (code_taxon, nom_taxon) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_nature_date_fkey FOREIGN KEY (nature_date)      REFERENCES observation.nature_date (nature_date) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_nature_objet_geo_fkey FOREIGN KEY (nature_objet_geo)      REFERENCES observation.nature_objet_geo (nature_objet_geo) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_statut_pop_fkey FOREIGN KEY (statut_pop)      REFERENCES observation.statut_pop (statut_pop) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_syst_ref_spatial_fkey FOREIGN KEY (syst_ref_spatial)      REFERENCES observation.syst_ref_spatial (syst_ref_spatial) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_type_source_fkey FOREIGN KEY (type_source)      REFERENCES observation.type_source (type_source) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_taxon_usage_donnee_fkey FOREIGN KEY (usage_donnee)      REFERENCES observation.usage_donnee (usage_donnee) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION);
@@ -238,15 +238,18 @@ $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE ListUser varchar[];
 DECLARE oneUser varchar;
+DECLARE db_nam varchar;
 BEGIN
+--- variables
 CASE WHEN this_user IS null THEN
 	ListUser = ARRAY['cbn_c_interface','cbn_med_interface','cbn_bl_interface','cbn_bp_interface','cbn_alp_interface','cbn_mc_interface','cbn_fc_interface','cbn_mas_interface','cbn_b_interface','a_just_interface','j_gourvil_interface','m_decherf_interface','j_millet_interface','r_gaspard_interface','i_mandon_interface','cbn_sa_interface','cbn_pmp_interface','plateforme_siflore','lecteur_masao'];
 ELSE ListUser = ARRAY [this_user];
 END CASE;
+SELECT catalog_name INTO db_nam FROM information_schema.information_schema_catalog_name;
 /*Gestion des droits*/
 CASE WHEN opt = 'add' THEN
 FOREACH oneUser IN ARRAY ListUser LOOP
-	EXECUTE 'GRANT CONNECT ON DATABASE si_flore_national_v4 TO '||oneUser||';';
+	EXECUTE 'GRANT CONNECT ON DATABASE '||db_nam||' TO '||oneUser||';';
 	EXECUTE 'GRANT USAGE ON SCHEMA exploitation TO '||oneUser||';';
 	EXECUTE 'GRANT SELECT ON ALL TABLES IN SCHEMA exploitation TO '||oneUser||';';
 	EXECUTE 'GRANT USAGE ON SCHEMA observation TO '||oneUser||';';
@@ -256,7 +259,7 @@ FOREACH oneUser IN ARRAY ListUser LOOP
 	out.lib_log := 'user supprimé';
 END LOOP;
 WHEN opt = 'drop' THEN
-	EXECUTE 'REVOKE ALL PRIVILEGES ON DATABASE si_flore_national_v4 TO '||oneUser||';';
+	EXECUTE 'REVOKE ALL PRIVILEGES ON DATABASE '||db_nam||' TO '||oneUser||';';
 	out.lib_log := 'user supprimé';
 ELSE out.lib_log := 'Paramètre incorrecte';
 END CASE;
@@ -920,7 +923,7 @@ DECLARE listJdd varchar;
 DECLARE cmd varchar;
 BEGIN 
 --- Variable
-connction = 'dbname=si_flore_national port=5433';
+connction = 'dbname=hub_fcbn port=5433';
 --- Commande
 -- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données provenant du schéma du CBN choisi (tables propres) dans le HUB FCBN
 SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
