@@ -16,7 +16,7 @@
 --- La fonction hub_admin_init sera lancée automatiquement.
 
 --- 2. Installer le hub							
---- SELECT * FROM hub_connect_ref([hote], '5433','hub_fcbn',[utilisateur],[mdp],'all')
+--- SELECT * FROM hub_connect_ref([hote], '5433','si_flore_national',[utilisateur],[mdp],'all')
 --- SELECT * FROM hub_admin_clone('hub')
 
 --- 3. Importer un jeu de données (ex :  TAXA)
@@ -29,10 +29,10 @@
 --- SELECT * FROM hub_push('hub','taxa');
 
 --- 6. Envoyer les données sur le hub national (ex : TAXA)
---- SELECT * FROM hub_connect([hote], '5433','hub_fcbn',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
+--- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', 'hub', [trigramme_cbn]);
 
 --- 7. Récupérer des données depuis le hub national vers le hub local(ex : TAXA)
---- SELECT * FROM hub_connect([hote], '5433','hub_fcbn',[utilisateur],[mdp], 'taxa', [trigramme_cbn], 'hub');
+--- SELECT * FROM hub_connect([hote], '5433','si_flore_national',[utilisateur],[mdp], 'taxa', [trigramme_cbn], 'hub');
 
 
 -------------------------------------------------------------------------------------------------------
@@ -327,7 +327,7 @@ DECLARE out zz_log%rowtype;
 DECLARE test varchar;
 BEGIN
 -- mise à jour des référentiels
-SELECT * into out FROM hub_connect_ref('94.23.218.10', '5433', 'hub_fcbn',utilisateur,mot_de_passe,'all');
+SELECT * into out FROM hub_connect_ref('94.23.218.10', '5433', 'si_flore_national',utilisateur,mot_de_passe,'all');
 PERFORM hub_log (libSchema, out);RETURN next out;
 
 -- mise à jour de la structure.
@@ -805,7 +805,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description :  Copie du Hub vers un serveur distant
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect_simple(jdd varchar, libSchema_from varchar, libSchema_to varchar, conect varchar  = 'dbname=hub_fcbn port=5433') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_connect_simple(jdd varchar, libSchema_from varchar, libSchema_to varchar, conect varchar  = 'dbname=si_flore_national port=5433') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
@@ -933,7 +933,7 @@ END;$BODY$ LANGUAGE plpgsql;
 --- Description :  Mise à jour du référentiel FSD depuis le hub
 ---------------------------------------------------------------------------------------------------------
 ---------------------------------------------------------------------------------------------------------
-CREATE OR REPLACE FUNCTION hub_connect_ref_simple(refPartie varchar = 'fsd',connction varchar = 'dbname=hub_fcbn port=5433') RETURNS setof zz_log  AS 
+CREATE OR REPLACE FUNCTION hub_connect_ref_simple(refPartie varchar = 'fsd',connction varchar = 'dbname=si_flore_national port=5433') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE connction varchar;
