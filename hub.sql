@@ -875,6 +875,7 @@ DECLARE connction varchar;
 DECLARE flag integer;
 DECLARE libTable varchar;
 DECLARE structure varchar;
+DECLARE les_champs varchar;
 DECLARE bdlink_structure varchar;
 BEGIN
 --- Variables
@@ -893,24 +894,27 @@ CASE WHEN flag IS NULL THEN CREATE SCHEMA ref; ELSE END CASE;
 -- Création et mise à jour de la meta-table référentiel
 DROP TABLE IF EXISTS ref.aa_meta;
 CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id));
-EXECUTE 'INSERT INTO ref.aa_meta SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
+EXECUTE 'INSERT INTO ref.aa_meta (id, nom_ref, typ, ordre, libelle, format) SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
 
 --- Les référentiels
 FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER BY nom_ref'
 	LOOP
 	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')''
-		FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one
-		JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref
+		FROM (SELECT nom_ref, string_agg(one.champs,'','') as champs FROM (SELECT nom_ref, libelle||'' ''||format as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ''  ORDER BY ordre ) as one GROUP BY nom_ref) as one
+		JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'' ORDER BY ordre) as two ON one.nom_ref = two.nom_ref
 		' INTO structure;
+	EXECUTE 'SELECT string_agg(libelle,'','') as champs 
+		FROM (SELECT libelle FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' ORDER BY ordre) as one
+		' INTO les_champs;
 	EXECUTE 'SELECT string_agg(libelle||'' ''||format,'','') as champs 
 		FROM (SELECT nom_ref, libelle,CASE WHEN format = ''serial NOT NULL'' OR format = ''serial'' THEN ''integer'' ELSE format END as format
-		FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'')AS one GROUP BY nom_ref
+		FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' ORDER BY ordre)AS one GROUP BY nom_ref
 		' INTO bdlink_structure;
 
 	CASE WHEN refPartie = 'all' OR refPartie = libTable THEN
 		EXECUTE 'DROP TABLE IF EXISTS ref.'||libTable||';';
 		EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';';	
-		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
+		EXECUTE 'INSERT INTO ref.'||libTable||' ('||les_champs||')SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
 		
 		--- Index geo
 		CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
