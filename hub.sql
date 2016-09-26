@@ -940,17 +940,16 @@ END;$BODY$ LANGUAGE plpgsql;
 CREATE OR REPLACE FUNCTION hub_connect_ref_simple(refPartie varchar = 'fsd',connction varchar = 'dbname=si_flore_national port=5433') RETURNS setof zz_log  AS 
 $BODY$
 DECLARE out zz_log%rowtype;
-DECLARE connction varchar;
 DECLARE flag integer;
 DECLARE libTable varchar;
 DECLARE structure varchar;
+DECLARE les_champs varchar;
 DECLARE bdlink_structure varchar;
 BEGIN
 --- Variables
 
 --- Log
 out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'hub_admin_ref';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;
-
 
 --- Case all
 CASE WHEN refPartie = 'all' THEN DROP SCHEMA IF EXISTS ref CASCADE; ELSE END CASE;
@@ -963,26 +962,27 @@ SELECT DISTINCT 1 INTO flag FROM pg_tables WHERE schemaname = 'ref' AND tablenam
 CASE WHEN flag IS NULL THEN CREATE TABLE ref.aa_meta(id serial NOT NULL, nom_ref varchar, typ varchar, ordre integer, libelle varchar, format varchar, CONSTRAINT aa_meta_pk PRIMARY KEY(id)); ELSE END CASE;
 
 TRUNCATE ref.aa_meta;
-EXECUTE 'INSERT INTO ref.aa_meta SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying)';
+EXECUTE 'INSERT INTO ref.aa_meta (id, nom_ref, typ, ordre, libelle, format) SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.aa_meta'') as t1 (id integer, nom_ref character varying, typ character varying, ordre integer, libelle character varying, format character varying);';
 
 --- Les référentiels
 FOR libTable IN EXECUTE 'SELECT nom_ref FROM ref.aa_meta GROUP BY nom_ref ORDER BY nom_ref'
 	LOOP
 	EXECUTE 'SELECT ''(''||champs||'',''||contrainte||'')''
-		FROM (SELECT nom_ref, string_agg(libelle||'' ''||format,'','') as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' GROUP BY nom_ref) as one
-		JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'') as two ON one.nom_ref = two.nom_ref
+		FROM (SELECT nom_ref, string_agg(one.champs,'','') as champs FROM (SELECT nom_ref, libelle||'' ''||format as champs FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ''  ORDER BY ordre ) as one GROUP BY nom_ref) as one
+		JOIN (SELECT nom_ref, ''CONSTRAINT ''||nom_ref||''_pk PRIMARY KEY (''||libelle||'')'' as contrainte FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''cle_primaire'' ORDER BY ordre) as two ON one.nom_ref = two.nom_ref
 		' INTO structure;
+	EXECUTE 'SELECT string_agg(libelle,'','') as champs 
+		FROM (SELECT libelle FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' ORDER BY ordre) as one
+		' INTO les_champs;
 	EXECUTE 'SELECT string_agg(libelle||'' ''||format,'','') as champs 
 		FROM (SELECT nom_ref, libelle,CASE WHEN format = ''serial NOT NULL'' OR format = ''serial'' THEN ''integer'' ELSE format END as format
-		FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'')AS one GROUP BY nom_ref
+		FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''champ'' ORDER BY ordre)AS one GROUP BY nom_ref
 		' INTO bdlink_structure;
 
 	CASE WHEN refPartie = 'all' OR refPartie = libTable THEN
-		EXECUTE 'SELECT DISTINCT 1 FROM pg_tables WHERE schemaname = ''ref'' AND tablename = '''||libTable||''';' INTO flag ;
-		CASE WHEN flag IS NULL THEN EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';'; out.lib_log := libTable||' créée';RETURN next out; ELSE END CASE;
-		EXECUTE 'TRUNCATE ref.'||libTable||';';
-		
-		EXECUTE 'INSERT INTO ref.'||libTable||' SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
+ 		EXECUTE 'DROP TABLE IF EXISTS ref.'||libTable||';';
+ 		EXECUTE 'CREATE TABLE ref.'||libTable||' '||structure||';';	
+		EXECUTE 'INSERT INTO ref.'||libTable||' ('||les_champs||')SELECT * FROM dblink('''||connction||''', ''SELECT * FROM ref.'||libTable||''') as t1 ('||bdlink_structure||')';
 
 		--- Index geo
 		CASE WHEN substr(libTable,1,3) = 'geo' THEN EXECUTE 'CREATE INDEX '||libTable||'_gist ON ref.'||libTable||' USING GIST (geom);'; ELSE END CASE;
