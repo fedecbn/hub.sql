@@ -5,10 +5,10 @@
 --- 1. Création de la base de données SI FLORE
 -- CREATE DATABASE siflore_data OWNER postgres ENCODING 'UTF-8';
 -- Récupérer les fonction en lançant les script hub.sql ET hub_to_siflore.sql sur cette base de données.
--- SELECT * FROM siflore_clone();
+-- SELECT * FROM siflore_clone(7);
 
 --- 2. Création d'un hub pour récupérer les données
--- SELECT * FROM hub_connect_simple_ref('all');
+-- SELECT * FROM hub_connect_ref_simple('all');
 -- SELECT * FROM hub_admin_clone('hub');
 
 --- 3. Création/mise à jour des référentiels utilisés (table taxref_new )
@@ -22,7 +22,7 @@
 --- Pas à pas pour la mise à jour des données dans le SI FLORE ---
 -------------------------------------------------------------
 --- 1. Mise à jour des données (HUB => HUB SIFLORE => SIFLORE /exploitation)
--- SELECT * FROM siflore_data_refresh('cor');
+-- SELECT * FROM siflore_data_refresh('alp');
 --- 2. Mise à jour des tables "dynamiques" utilisées dans l'application SI FLORE (menus déroulants, onglets de synthèse en bas de page...)
 -- SELECT * FROM siflore_synthese_refresh();
 
@@ -90,7 +90,7 @@ SELECT * FROM siflore_admin_init();
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_clone() RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_clone(version_taxref integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE exist varchar;
@@ -152,15 +152,6 @@ DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_ref_idk;CREATE INDEX obs_mai
 DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_sig_idk;CREATE INDEX obs_maille_fr5_cd_sig_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_sig COLLATE pg_catalog."default");
 DROP INDEX IF EXISTS exploitation.obs_maille_fr5_geom_gist;CREATE INDEX obs_maille_fr5_geom_gist  ON exploitation.obs_maille_fr5  USING gist  (geom);
 DROP INDEX IF EXISTS exploitation.obs_maille_fr5_cd_jdd_idk;CREATE INDEX obs_maille_fr5_cd_jdd_idk  ON exploitation.obs_maille_fr5  USING btree  (cd_jdd);
--- Table: exploitation.taxref_v5
-/*CREATE TABLE exploitation.taxref_v5_new (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_v5_pkey PRIMARY KEY (cd_ref, nom_complet));
-DROP INDEX IF EXISTS exploitation.cd_ref_5_idk;CREATE INDEX cd_ref_5_idk  ON exploitation.taxref_v5_new  USING btree (cd_ref);
-DROP INDEX IF EXISTS exploitation.cd_taxsup2_5_idk;CREATE INDEX cd_taxsup2_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup2);
-DROP INDEX IF EXISTS exploitation.cd_taxsup3_5_idk;CREATE INDEX cd_taxsup3_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup3);
-DROP INDEX IF EXISTS exploitation.cd_taxsup4_5_idk;CREATE INDEX cd_taxsup4_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup4);
-DROP INDEX IF EXISTS exploitation.cd_taxsup_5_idk;CREATE INDEX cd_taxsup_5_idk ON exploitation.taxref_v5_new USING btree (cd_taxsup);
-EXECUTE 'INSERT INTO exploitation.taxref_v5_new SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.taxref_v5_new;'') as t1(cd_ref integer,  nom_complet character varying,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean,  bryophyta boolean,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer)';
-*/
 -- Table: exploitation.taxref
 CREATE TABLE exploitation.taxref_new (cd_ref integer NOT NULL,  nom_complet character varying NOT NULL,  regne character varying,  phylum character varying,  classe character varying,  ordre character varying, famille character varying,  cd_taxsup integer,  rang character varying,  lb_nom character varying,  lb_auteur character varying,  nom_vern character varying,  nom_vern_eng character varying, habitat character varying,  liste_bryo boolean DEFAULT false,  bryophyta boolean DEFAULT false,  cd_taxsup2 integer,  cd_taxsup3 integer,  cd_taxsup4 integer,  CONSTRAINT taxref_new_pkey PRIMARY KEY (cd_ref, nom_complet));
 DROP INDEX IF EXISTS cd_ref_idk;CREATE INDEX cd_ref_idk  ON exploitation.taxref_new  USING btree (cd_ref);
@@ -191,6 +182,8 @@ CREATE TABLE exploitation.suivi_maj_data(cd_jdd varchar NOT NULL, date_maj times
 -- Table: exploitation.convention_berne
 CREATE TABLE exploitation.convention_berne(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer,CONSTRAINT convention_berne_pkey PRIMARY KEY (cd_ref));
 EXECUTE 'INSERT INTO exploitation.convention_berne SELECT * FROM dblink(''dbname='||base_source||''',''SELECT * FROM exploitation.convention_berne;'') as t1(cd_ref integer, nom_complet character varying, regne character varying, phylum character varying, classe character varying, ordre character varying, famille character varying, cd_taxsup integer, rang character varying, lb_nom character varying, lb_auteur character varying, nom_vern character varying, nom_vern_eng character varying, habitat character varying, cd_taxsup2 integer, cd_taxsup3 integer, cd_taxsup4 integer);';
+--- Table:exploitation.taxref_no_change
+PERFORM siflore_taxref_no_change(version_taxref);
 
 --- Schema: observation_reunion;
 DROP SCHEMA IF EXISTS observation_reunion CASCADE; CREATE SCHEMA observation_reunion;
@@ -219,6 +212,7 @@ CREATE TABLE observation_reunion.observation_maille_utm1(  id_flore_fcbn charact
 CREATE TABLE observation_reunion.observation_maille_utm10(  id_flore_fcbn character varying NOT NULL,  cd_sig character varying NOT NULL,  type_localisation_maille_utm10 character(1) NOT NULL, type_rattachement_maille_utml0 character(1) NOT NULL,  remarque_lieu character varying,  id serial NOT NULL,  CONSTRAINT observation_maille_utm10_pkey PRIMARY KEY (id_flore_fcbn, cd_sig),  CONSTRAINT observation_maille_utm10_cd_sig_fkey FOREIGN KEY (cd_sig)      REFERENCES observation_reunion.grille_10km_zee_974 (cd_sig) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_maille_utm10_id_flore_fcbn_fkey FOREIGN KEY (id_flore_fcbn)      REFERENCES observation_reunion.observation_taxon_reunion (id_flore_fcbn) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_maille_utm10_type_localisation_maille_utm10_fkey FOREIGN KEY (type_localisation_maille_utm10)      REFERENCES observation.type_localisation (type_localisation) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_maille_utm10_type_rattachement_maille_utm10_fkey FOREIGN KEY (type_rattachement_maille_utml0)      REFERENCES observation.type_rattachement (type_rattachement) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION);
 -- Table: observation_reunion.observation_commune_reunion
 CREATE TABLE observation_reunion.observation_commune_reunion(  id_flore_fcbn character varying NOT NULL,  code_insee character varying NOT NULL,  type_localisation_commune character(1) NOT NULL,  type_rattachement_commune character(1) NOT NULL,  remarque_lieu character varying,  referentiel_communal character varying NOT NULL,  departement character(3),  id serial NOT NULL,  CONSTRAINT observation_commune_reunion_pkey PRIMARY KEY (id_flore_fcbn, code_insee),  CONSTRAINT observation_commune_reunion_code_insee_fkey FOREIGN KEY (code_insee)      REFERENCES observation_reunion.communes_bdtopo_reunion (code_insee) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_id_flore_fcbn_fkey FOREIGN KEY (id_flore_fcbn)      REFERENCES observation_reunion.observation_taxon_reunion (id_flore_fcbn) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_type_localisation_commune_fkey FOREIGN KEY (type_localisation_commune)      REFERENCES observation.type_localisation (type_localisation) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION,  CONSTRAINT observation_commune_reunion_type_rattachement_commune_fkey FOREIGN KEY (type_rattachement_commune)      REFERENCES observation.type_rattachement (type_rattachement) MATCH SIMPLE      ON UPDATE NO ACTION ON DELETE NO ACTION);
+
 
 --- Log
 out.lib_log := 'Siflore créé';out.lib_schema := '-';out.lib_table := '-';out.lib_champ := '-';out.typ_log := 'siflore_clone';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log ('public', out);RETURN NEXT out;
@@ -275,7 +269,7 @@ END; $BODY$ LANGUAGE plpgsql;
 --------------------------------
 -------------------------------------------------------------
 -------------------------------------------------------------
-CREATE OR REPLACE FUNCTION siflore_taxref_no_change(version integer) RETURNS setof zz_log AS 
+CREATE OR REPLACE FUNCTION siflore_taxref_no_change(version integer = 7) RETURNS setof zz_log AS 
 $BODY$
 DECLARE out zz_log%rowtype;
 DECLARE listVersion varchar;
@@ -923,7 +917,8 @@ DECLARE listJdd varchar;
 DECLARE cmd varchar;
 BEGIN 
 --- Variable
-connction = 'dbname=hub_fcbn port=5433';
+--connction = 'dbname=hub_fcbn port=5433';
+connction = 'dbname=si_flore_national port=5433';
 --- Commande
 -- 1. ... HUB FCBN => HUB SIFLORE - on récupère sur le HUB SI FLORE les données provenant du schéma du CBN choisi (tables propres) dans le HUB FCBN
 SELECT * INTO out FROM hub_truncate('hub','propre'); RETURN next out;
