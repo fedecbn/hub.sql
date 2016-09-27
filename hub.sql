@@ -644,7 +644,7 @@ temp_data_nb_releve = (SELECT count(*) FROM '||libSchema||'.temp_releve),
 temp_data_nb_observation = (SELECT count(*) FROM '||libSchema||'.temp_observation),
 temp_data_nb_taxon = (SELECT count(DISTINCT cd_ref) FROM '||libSchema||'.temp_observation),
 temp_taxa_nb_taxon = (SELECT count(*) FROM '||libSchema||'.temp_entite),
-derniere_action = (SELECT typ_log||'' : ''||lib_log FROM '||libSchema||'.zz_log WHERE date_log = (SELECT max(date_log) FROM '||libSchema||'.zz_log) GROUP BY typ_log,lib_log,date_log LIMIT 1),
+derniere_action = (SELECT typ_log FROM '||libSchema||'.zz_log WHERE date_log = (SELECT max(date_log) FROM '||libSchema||'.zz_log) GROUP BY typ_log LIMIT 1),
 date_derniere_action = (SELECT max(date_log) FROM '||libSchema||'.zz_log)
 WHERE lib_cbn = '''||libSchema||'''
 	';
