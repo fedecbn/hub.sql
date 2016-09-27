@@ -300,13 +300,12 @@ WHEN typAction = 'export_xml' THEN	--- Mise à jour
 	
 WHEN typAction = 'export' THEN	--- Mise à jour
 	--- meta-table
-	EXECUTE 'COPY (SELECT * FROM ref.aa_meta) TO '''||path||'/aa_meta.csv'' CSV HEADER DELIMITER E'';'' ENCODING ''UTF8'' ;';
+	EXECUTE 'COPY (SELECT * FROM ref.aa_meta) TO '''||path||'aa_meta.csv'' CSV HEADER DELIMITER '';'' ENCODING ''UTF8'' ;';
 	--- Tables
-	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref' AND tablename <> 'aa_meta'
-	LOOP
-	EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
-	EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'/ref_'||libTable||'.csv'' CSV HEADER DELIMITER E'''||delimitr||''' ENCODING ''UTF8'' ;';
-	out.lib_log := 'ref_'||libTable||'.csv exporté';RETURN next out;
+	FOR libTable IN SELECT tablename FROM pg_tables WHERE schemaname = 'ref' AND tablename <> 'aa_meta' LOOP
+		EXECUTE 'SELECT CASE WHEN libelle = ''virgule'' THEN '','' WHEN libelle = ''tab'' THEN ''\t'' WHEN libelle = ''point_virgule'' THEN '';'' ELSE '';'' END as delimiter FROM ref.aa_meta WHERE nom_ref = '''||libTable||''' AND typ = ''delimiter''' INTO delimitr;
+		EXECUTE 'COPY (SELECT * FROM ref.'||libTable||') TO '''||path||'ref_'||libTable||'.csv'' CSV HEADER DELIMITER E'''||delimitr||''' ENCODING ''UTF8'' ;';
+		out.lib_log := 'ref_'||libTable||'.csv exporté';RETURN next out;
 	END LOOP;
 ELSE out.lib_log := 'Action non reconnue';RETURN next out;
 END CASE;
@@ -1235,7 +1234,8 @@ $BODY$
 DECLARE typJdd varchar;
 DECLARE listJdd varchar;
 DECLARE libTable varchar;
---DECLARE delim_import varchar;
+DECLARE listeChamp varchar;
+DECLARE listchamp varchar;
 DECLARE out zz_log%rowtype;
 BEGIN
 --- Variable
@@ -1249,32 +1249,31 @@ END CASE;
 --- delimitr
 CASE WHEN delimitr = 'virgule' THEN delimitr = ''','''; WHEN delimitr = 'tab' THEN delimitr = 'E''\t'''; WHEN delimitr = 'point_virgule' THEN delimitr = ''';'''; ELSE delimitr = ''';'''; END CASE;
 --- Commande
---- Cas du chargement de tous les jeux de données
+--- Cas du chargement spécifique (un seul fichier)
 CASE WHEN files <> '' THEN
 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
-	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' ('||champ||') FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
+	CASE WHEN champ = '' THEN EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM (SELECT column_name FROM information_schema.columns WHERE table_name = '''||files||''' AND table_schema = '''||libSchema||''' ORDER BY ordinal_position) as one;' INTO listchamp; ELSE END CASE;
+	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' ('||listchamp||') FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
 	CASE WHEN rempla = TRUE THEN out.lib_log := 'fichier std_'||files||'.csv remplacé'; ELSE out.lib_log := 'fichier std_'||files||'.csv ajouté'; END CASE;
+--- Cas du chargement de tous les jeux de données
 WHEN jdd = 'all' THEN 
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd;'
 	LOOP 
 		CASE WHEN rempla = TRUE THEN EXECUTE 'TRUNCATE "'||libSchema||'".temp_'||libTable||';';out.lib_log := ' Tous les fichiers ont été remplacé '; ELSE out.lib_log := ' Tous les fichiers ont été importé '; END CASE;
-		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';'; 
+		CASE WHEN champ = '' THEN EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM (SELECT column_name FROM information_schema.columns WHERE table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ORDER BY ordinal_position) as one;' INTO listchamp; ELSE END CASE;
+		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' ('||listchamp||') FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';'; 
 	END LOOP;
 --- Cas du chargement global (tous les fichiers)
 WHEN files = '' THEN
 	FOR libTable in EXECUTE 'SELECT DISTINCT cd_table FROM ref.fsd WHERE typ_jdd = '''||typJdd||''' OR typ_jdd = ''meta'';'
 	LOOP 
 		CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||libTable||' WHERE cd_jdd IN ('||listJdd||');'; ELSE PERFORM 1; END CASE;
-		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';'; 
+		CASE WHEN champ = '' THEN EXECUTE 'SELECT string_agg(''"''||column_name||''"'','','')  FROM (SELECT column_name FROM information_schema.columns WHERE table_name = '''||libTable||''' AND table_schema = '''||libSchema||''' ORDER BY ordinal_position) as one;' INTO listchamp; ELSE END CASE;
+		EXECUTE 'COPY "'||libSchema||'".temp_'||libTable||' ('||listchamp||') FROM '''||path||'std_'||libTable||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';'; 
 	END LOOP;
 	CASE WHEN rempla = TRUE THEN out.lib_log := 'jdd '||jdd||' remplacé'; ELSE out.lib_log := 'jdd '||jdd||' ajouté';END CASE;
---- Cas du chargement spécifique (un seul fichier)
 ELSE
 END CASE;
---- WHEN jdd <> 'data' AND jdd <> 'taxa' AND files <> '' THEN 
---- 	CASE WHEN rempla = TRUE THEN EXECUTE 'DELETE FROM "'||libSchema||'".temp_'||files||' WHERE cd_jdd IN ('||listJdd||');'; out.lib_log := 'Fichier remplacé'; ELSE out.lib_log := 'Fichier ajouté'; END CASE;
---- 	EXECUTE 'COPY "'||libSchema||'".temp_'||files||' FROM '''||path||'std_'||files||'.csv'' HEADER CSV DELIMITER '||delimitr||' ENCODING ''UTF8'';';
---- ELSE out.lib_log := 'Problème identifié (Soit le jdd soit le fichier)'; END CASE;
 
 --- Output&Log
 out.lib_schema := libSchema;out.lib_champ := '-';out.lib_table := '-';out.typ_log := 'hub_import';out.nb_occurence := 1; SELECT CURRENT_TIMESTAMP INTO out.date_log;out.user_log := current_user;PERFORM hub_log (libSchema, out);RETURN next out;
