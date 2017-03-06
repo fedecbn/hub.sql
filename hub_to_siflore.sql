@@ -5,13 +5,15 @@
 --- 1. Création de la base de données SI FLORE
 -- CREATE DATABASE siflore_data OWNER postgres ENCODING 'UTF-8';
 -- Récupérer les fonction en lançant les script hub.sql ET hub_to_siflore.sql sur cette base de données.
--- SELECT * FROM siflore_clone(7);
 
 --- 2. Création d'un hub pour récupérer les données
 -- SELECT * FROM hub_connect_ref_simple('all');
 -- SELECT * FROM hub_admin_clone('hub');
 
---- 3. Création/mise à jour des référentiels utilisés (table taxref_new )
+--- 3. Mettre en place le reste de la base de données
+-- SELECT * FROM siflore_clone(7);
+
+--- 4. Création/mise à jour des référentiels utilisés (table taxref_new )
 -- SELECT * FROM siflore_ref_refresh();
 
 --- 4. Ajout/mise à jour des utilisateurs 
