@@ -7,7 +7,7 @@
 -- Récupérer les fonction en lançant les script hub.sql ET hub_to_siflore.sql sur cette base de données.
 
 --- 2. Création d'un hub pour récupérer les données
--- SELECT * FROM hub_connect_ref_simple('all');
+-- SELECT * FROM hub_connect_ref_simple('all', 'dbname=[nom_bdd_a_copier] port=[port_bdd_a_copier] user=postgres password=[mpd_utilisateur]');
 -- SELECT * FROM hub_admin_clone('hub');
 
 --- 3. Mettre en place le reste de la base de données
